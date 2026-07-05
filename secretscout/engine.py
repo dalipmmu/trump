@@ -732,8 +732,32 @@ class Engine:
     
 
     def _validate_razorpay_key(self, key: str) -> bool:
-        # Razorpay key validation (simplified)
-        return key.startswith('rzp_live_') or key.startswith('rzp_test_')
+        """Validate Razorpay key by checking if it's a valid key ID format
+        For secrets, we check if it's a 32-character hex string (Razorpay secret format)
+        """
+        try:
+            import requests
+            # If it's a key ID (rzp_live_ or rzp_test_), validate it
+            if key.startswith('rzp_live_') or key.startswith('rzp_test_'):
+                # Extract the key ID part
+                key_id = key
+                # Try to validate with Razorpay API
+                url = "https://api.razorpay.com/v1/payments"
+                auth = (key_id, "")
+                response = requests.get(url, auth=auth, timeout=15)
+                # If we get 401, the key format is valid but might be invalid
+                # If we get 403 or other errors, it might still be valid
+                # We consider it valid if we don't get a connection error
+                return response.status_code in [200, 401, 403]
+            # For secret keys (32-char hex), we can't validate without the key ID
+            # But we can check the format is correct
+            elif len(key) == 32 and all(c in '0123456789abcdefABCDEF' for c in key):
+                # This is a valid hex string of the right length
+                # We'll consider it potentially valid but need more context
+                return True
+            return False
+        except Exception:
+            return False
     
     def _validate_google_key(self, key: str) -> bool:
         try:

@@ -57,6 +57,9 @@ def is_high_entropy_string(text: str, threshold: float = 3.5) -> bool:
     return False
 
 
+
+
+
 # API Key Patterns
 SECRET_PATTERNS: List[SecretPattern] = [
     # OpenAI
@@ -81,7 +84,7 @@ SECRET_PATTERNS: List[SecretPattern] = [
     # Razorpay Keys (Critical for bounty hunting)
     SecretPattern(
         name="Razorpay Key ID",
-        pattern=re.compile(r'rzp_live_[a-zA-Z0-9]{16,}', re.IGNORECASE),
+        pattern=re.compile(r'rzp_(live|test)_[a-zA-Z0-9]{16,}', re.IGNORECASE),
         severity="high",
         data_class="Financial",
         provider="razorpay",
@@ -89,7 +92,7 @@ SECRET_PATTERNS: List[SecretPattern] = [
     ),
     SecretPattern(
         name="Razorpay Key Secret",
-        pattern=re.compile(r'[a-zA-Z0-9]{32,}', re.IGNORECASE),
+        pattern=re.compile(r'\b[a-f0-9]{32}\b'),
         severity="critical",
         data_class="Financial",
         provider="razorpay"
@@ -192,15 +195,7 @@ SECRET_PATTERNS: List[SecretPattern] = [
         provider="perplexity"
     ),
     
-    # Cohere API Key
-    SecretPattern(
-        name="Cohere API Key",
-        pattern=re.compile(r'[a-zA-Z0-9\-_]{40,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        provider="cohere"
-    ),
-    
+
     # Sentry DSN
     SecretPattern(
         name="Sentry DSN",
@@ -211,48 +206,7 @@ SECRET_PATTERNS: List[SecretPattern] = [
         allowlist=True  # Public by design
     ),
     
-    # Generic API Key patterns
-    SecretPattern(
-        name="Generic API Key (api_key)",
-        pattern=re.compile(r'api[_-]?key["\']?\s*[:=]\s*["\']?([a-zA-Z0-9\-_]{16,})["\']?', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        secret_group=1,
-        entropy_threshold=3.5
-    ),
-    SecretPattern(
-        name="Generic API Key (apikey)",
-        pattern=re.compile(r'apikey["\']?\s*[:=]\s*["\']?([a-zA-Z0-9\-_]{16,})["\']?', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        secret_group=1,
-        entropy_threshold=3.5
-    ),
-    SecretPattern(
-        name="Generic Secret",
-        pattern=re.compile(r'secret["\']?\s*[:=]\s*["\']?([a-zA-Z0-9\-_]{16,})["\']?', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        secret_group=1,
-        entropy_threshold=3.5
-    ),
-    SecretPattern(
-        name="Generic Token",
-        pattern=re.compile(r'token["\']?\s*[:=]\s*["\']?([a-zA-Z0-9\-_]{16,})["\']?', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        secret_group=1,
-        entropy_threshold=3.5
-    ),
-    SecretPattern(
-        name="Generic Password",
-        pattern=re.compile(r'password["\']?\s*[:=]\s*["\']?([a-zA-Z0-9\-_!@#$%^&*()]{8,})["\']?', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        secret_group=1,
-        entropy_threshold=3.0
-    ),
-    
+
     # JWT Tokens
     SecretPattern(
         name="JWT Token",
@@ -282,35 +236,11 @@ SECRET_PATTERNS: List[SecretPattern] = [
 
 # Sensitive Data Patterns (PII, Financial, etc.)
 SENSITIVE_PATTERNS: List[SecretPattern] = [
-    # Credit Card Numbers (Luhn validation)
-    SecretPattern(
-        name="Credit Card Number",
-        pattern=re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9]{2})[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11})\b', re.IGNORECASE),
-        severity="critical",
-        data_class="Financial"
-    ),
-    
     # Social Security Numbers (US)
     SecretPattern(
         name="US Social Security Number",
         pattern=re.compile(r'\b\d{3}-\d{2}-\d{4}\b', re.IGNORECASE),
         severity="critical",
-        data_class="PII"
-    ),
-    
-    # Email Addresses
-    SecretPattern(
-        name="Email Address",
-        pattern=re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', re.IGNORECASE),
-        severity="medium",
-        data_class="PII"
-    ),
-    
-    # Phone Numbers
-    SecretPattern(
-        name="Phone Number",
-        pattern=re.compile(r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b', re.IGNORECASE),
-        severity="medium",
         data_class="PII"
     ),
     
@@ -492,12 +422,37 @@ def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
             
             # Skip if it's a placeholder or test value
             if any(placeholder in secret_value.lower() for placeholder in 
-                   ['example', 'test', 'placeholder', 'your_', 'xxx', 'yyy', 'zzz']):
+                   ['example', 'test', 'placeholder', 'your_', 'xxx', 'yyy', 'zzz', 'sample', 'demo']):
                 continue
             
             # For generic patterns, check entropy
             if pattern.entropy_threshold > 0 and not is_high_entropy_string(secret_value, pattern.entropy_threshold):
                 continue
+            
+            # For Razorpay secrets, be more strict - only accept if it looks like a real key
+            if pattern.provider == "razorpay" and pattern.name == "Razorpay Key Secret":
+                # Razorpay secrets are exactly 32 lowercase hex characters
+                if len(secret_value) != 32 or not all(c in '0123456789abcdef' for c in secret_value):
+                    continue
+                # Additional check: Razorpay secrets should be in context with razorpay
+                # Check if 'razorpay' appears in the text near this match
+                match_start = match.start()
+                text_lower = text.lower()
+                # Look for 'razorpay' within 50 characters before OR after (very strict)
+                search_start = max(0, match_start - 50)
+                search_end = min(len(text), match_start + 50)
+                nearby_text = text_lower[search_start:search_end]
+                if 'razorpay' not in nearby_text and 'rzp_' not in nearby_text:
+                    # Also check if razorpay/rzp_ appears right after the match
+                    after_text = text_lower[match_start + len(secret_value):min(len(text), match_start + len(secret_value) + 50)]
+                    if 'razorpay' not in after_text and 'rzp_' not in after_text:
+                        continue
+                # Don't match if this 32-char hex is part of a longer string (like a key ID)
+                # Check characters before and after
+                if match_start > 0 and text[match_start - 1] in 'abcdef0123456789-':
+                    continue  # Part of a longer hex string or has prefix
+                if match_start + 32 < len(text) and text[match_start + 32] in 'abcdef0123456789':
+                    continue  # Part of a longer hex string
             
             finding = {
                 'type': pattern.name,
@@ -516,10 +471,6 @@ def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
     for pattern in SENSITIVE_PATTERNS:
         for match in pattern.pattern.finditer(text):
             secret_value = match.group(0)
-            
-            # Skip email addresses in some contexts (too common)
-            if pattern.name == "Email Address" and '@' in context:
-                continue
             
             finding = {
                 'type': pattern.name,
@@ -542,20 +493,6 @@ def redact_secret(secret: str, max_length: int = 8) -> str:
     if len(secret) <= max_length * 2:
         return secret[:max_length] + '...' if len(secret) > max_length else secret
     return secret[:max_length] + '...' + secret[-max_length:]
-
-
-def is_likely_secret(value: str) -> bool:
-    """Quick check if a value is likely a secret"""
-    if not value or len(value) < 8:
-        return False
-    
-    # Check against known patterns
-    for pattern in SECRET_PATTERNS:
-        if pattern.pattern.search(value):
-            return True
-    
-    # Check entropy
-    return is_high_entropy_string(value)
 
 
 def extract_api_keys_from_jwt(token: str) -> Dict:
