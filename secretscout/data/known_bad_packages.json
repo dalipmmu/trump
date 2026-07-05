@@ -1,0 +1,177 @@
+{
+  "fallguys": {
+    "name": "fallguys",
+    "description": "Malicious package that steals environment variables",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#malicious-packages",
+    "severity": "critical",
+    "type": "data_exfiltration"
+  },
+  "flatmap-stream": {
+    "name": "flatmap-stream",
+    "description": "Malicious package that exfiltrates data",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#malicious-packages",
+    "severity": "critical",
+    "type": "data_exfiltration"
+  },
+  "node-ipc": {
+    "name": "node-ipc",
+    "description": "Package with vulnerability that allows arbitrary code execution",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "code_execution"
+  },
+  "ua-parser-js": {
+    "name": "ua-parser-js",
+    "description": "Package with vulnerability that allows regular expression denial of service",
+    "reference": "https://github.com/advisories/GHSA-93q8-gq69-633v",
+    "severity": "high",
+    "type": "dos"
+  },
+  "colors": {
+    "name": "colors",
+    "description": "Package with vulnerability that allows arbitrary code execution",
+    "reference": "https://github.com/advisories/GHSA-3627-mhvv-4973",
+    "severity": "critical",
+    "type": "code_execution"
+  },
+  "faker": {
+    "name": "faker",
+    "description": "Package with vulnerability that allows arbitrary code execution",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "critical",
+    "type": "code_execution"
+  },
+  "jsonwebtoken": {
+    "name": "jsonwebtoken",
+    "description": "Package with vulnerability in key validation",
+    "reference": "https://github.com/advisories/GHSA-7354-8mhr-q2q7",
+    "severity": "high",
+    "type": "authentication_bypass"
+  },
+  "lodash": {
+    "name": "lodash",
+    "description": "Package with prototype pollution vulnerabilities in older versions",
+    "reference": "https://github.com/advisories/GHSA-29mw-wpgm-hmr9",
+    "severity": "high",
+    "type": "prototype_pollution"
+  },
+  "axios": {
+    "name": "axios",
+    "description": "Proxy misconfiguration in older versions",
+    "reference": "https://github.com/advisories/GHSA-4w4r-4288-3353",
+    "severity": "medium",
+    "type": "ssrf"
+  },
+  "request": {
+    "name": "request",
+    "description": "Deprecated package with multiple vulnerabilities",
+    "reference": "https://github.com/request/request/issues/3143",
+    "severity": "high",
+    "type": "multiple_vulnerabilities"
+  },
+  "minimist": {
+    "name": "minimist",
+    "description": "Prototype pollution vulnerability",
+    "reference": "https://github.com/advisories/GHSA-vh95-rmgr-6w4m",
+    "severity": "high",
+    "type": "prototype_pollution"
+  },
+  "yargs-parser": {
+    "name": "yargs-parser",
+    "description": "Prototype pollution vulnerability",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "prototype_pollution"
+  },
+  "coa": {
+    "name": "coa",
+    "description": "Malicious package that installs backdoor",
+    "reference": "https://github.com/advisories/GHSA-426r-27x7-6375",
+    "severity": "critical",
+    "type": "backdoor"
+  },
+  "rc": {
+    "name": "rc",
+    "description": "Prototype pollution vulnerability",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "prototype_pollution"
+  },
+  "cli": {
+    "name": "cli",
+    "description": "Malicious package that exfiltrates environment variables",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#malicious-packages",
+    "severity": "critical",
+    "type": "data_exfiltration"
+  },
+  "processenv": {
+    "name": "processenv",
+    "description": "Malicious package that steals environment variables",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#malicious-packages",
+    "severity": "critical",
+    "type": "data_exfiltration"
+  },
+  "envfile": {
+    "name": "envfile",
+    "description": "Malicious package that reads .env files",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#malicious-packages",
+    "severity": "critical",
+    "type": "data_exfiltration"
+  },
+  "node-pre-gyp": {
+    "name": "node-pre-gyp",
+    "description": "Package with path traversal vulnerability",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "path_traversal"
+  },
+  "tar": {
+    "name": "tar",
+    "description": "Package with path traversal vulnerability",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "path_traversal"
+  },
+  "elliptic": {
+    "name": "elliptic",
+    "description": "Package with timing attack vulnerability",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "medium",
+    "type": "timing_attack"
+  },
+  "qs": {
+    "name": "qs",
+    "description": "Package with prototype pollution vulnerability in older versions",
+    "reference": "https://github.com/advisories/GHSA-3529-m58q-5r43",
+    "severity": "high",
+    "type": "prototype_pollution"
+  },
+  "express": {
+    "name": "express",
+    "description": "Typosquat of popular express package",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#typosquatting",
+    "severity": "high",
+    "type": "typosquat"
+  },
+  "react": {
+    "name": "react",
+    "description": "Typosquat of popular react package",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#typosquatting",
+    "severity": "high",
+    "type": "typosquat"
+  },
+  "lodashs": {
+    "name": "lodashs",
+    "description": "Typosquat of popular lodash package",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#typosquatting",
+    "severity": "high",
+    "type": "typosquat"
+  },
+  "momentjs": {
+    "name": "momentjs",
+    "description": "Typosquat of popular moment package",
+    "reference": "https://github.com/RedHuntLabs/Awesome-Asset-Discovery#typosquatting",
+    "severity": "high",
+    "type": "typosquat"
+  }
+}

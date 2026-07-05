@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecretScout PRO - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin: 0;
+        }
+        
+        .header .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .nav a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .nav a:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+        }
+        
+        .sidebar {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            height: fit-content;
+        }
+        
+        .sidebar h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group input[type="number"],
+        .form-group input[type="password"],
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            height: 18px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .content h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .scan-form {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .techniques-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .technique-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .technique-option input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .technique-option label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        
+        .results-section {
+            margin-top: 30px;
+        }
+        
+        .scan-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .status-running {
+            background: #007bff;
+            color: white;
+        }
+        
+        .status-completed {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status-failed {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .status-cancelled {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        
+        .findings-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .summary-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .summary-card h3 {
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .summary-card p {
+            color: #666;
+            margin: 0;
+        }
+        
+        .findings-list {
+            margin-top: 20px;
+        }
+        
+        .finding-item {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .finding-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .finding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .finding-title {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .finding-severity {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8em;
+            color: white;
+        }
+        
+        .severity-critical { background: #dc3545; }
+        .severity-high { background: #fd7e14; }
+        .severity-medium { background: #ffc107; color: #333; }
+        .severity-low { background: #28a745; }
+        .severity-info { background: #17a2b8; }
+        
+        .finding-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .history-section {
+            margin-top: 30px;
+        }
+        
+        .history-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .download-buttons .btn {
+            width: auto;
+            padding: 8px 15px;
+        }
+        
+        .toggle-secrets {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .toggle-secrets label {
+            cursor: pointer;
+        }
+        
+        .toggle-secrets input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .techniques-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🔍 SecretScout PRO</h1>
+                <p class="subtitle">Professional API Vulnerability Detection</p>
+            </div>
+            <div class="nav">
+                <a href="/">Dashboard</a>
+                <a href="#history">History</a>
+                <a href="#settings">Settings</a>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <h2>🎯 Quick Scan</h2>
+                <form id="scanForm" class="scan-form">
+                    <div class="form-group">
+                        <label for="url">Website URL</label>
+                        <input type="url" id="url" name="url" placeholder="https://example.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="project_path">Local Project Path (optional)</label>
+                        <input type="text" id="project_path" name="project_path" placeholder="/path/to/project">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Techniques</label>
+                        <div class="techniques-grid">
+                            {% for tech_id, tech_info in techniques.items() %}
+                            <div class="technique-option">
+                                <input type="checkbox" id="tech_{{ tech_id }}" name="techniques" value="{{ tech_id }}" checked>
+                                <label for="tech_{{ tech_id }}">{{ tech_id }} - {{ tech_info.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="crawl" name="crawl" checked>
+                            <label for="crawl">Crawl entire website</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="validate_keys" name="validate_keys">
+                            <label for="validate_keys">Validate API keys (read-only)</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="reveal_secrets" name="reveal_secrets">
+                            <label for="reveal_secrets">Show full secret values</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="max_pages">Max Pages (if crawling)</label>
+                        <input type="number" id="max_pages" name="max_pages" value="50" min="1" max="1000">
+                    </div>
+                    
+                    <button type="submit" class="btn">Start Scan</button>
+                </form>
+            </div>
+            
+            <div class="content">
+                <h2>📊 Dashboard</h2>
+                
+                <div id="scanStatus" class="results-section" style="display: none;">
+                    <div class="scan-status">
+                        <h3>Scan in Progress</h3>
+                        <span id="statusBadge" class="status-badge status-running">RUNNING</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText">Starting scan...</p>
+                    <button id="cancelScan" class="btn btn-secondary" style="display: none;">Cancel Scan</button>
+                </div>
+                
+                <div id="scanResults" class="results-section" style="display: none;">
+                    <div class="scan-status">
+                        <h3>Scan Results</h3>
+                        <span id="resultStatus" class="status-badge"></span>
+                    </div>
+                    
+                    <div id="summaryCards" class="findings-summary"></div>
+                    
+                    <div class="toggle-secrets">
+                        <input type="checkbox" id="toggleSecrets">
+                        <label for="toggleSecrets">Show full secret values</label>
+                    </div>
+                    
+                    <div id="findingsList" class="findings-list"></div>
+                    
+                    <div class="download-buttons">
+                        <button id="downloadJson" class="btn">Download JSON</button>
+                        <button id="downloadHtml" class="btn">Download HTML</button>
+                        <button id="downloadPdf" class="btn">Download PDF</button>
+                        <button id="downloadWalkthrough" class="btn btn-secondary">Plain English Report</button>
+                    </div>
+                </div>
+                
+                <div id="historySection" class="history-section">
+                    <h2 id="history">📜 Scan History</h2>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentScanId = null;
+        let revealSecrets = false;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+            
+            // Handle form submission
+            document.getElementById('scanForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                startScan();
+            });
+            
+            // Handle toggle secrets
+            document.getElementById('toggleSecrets').addEventListener('change', function() {
+                revealSecrets = this.checked;
+                updateFindingsDisplay();
+            });
+        });
+        
+        function startScan() {
+            const form = document.getElementById('scanForm');
+            const formData = new FormData(form);
+            
+            // Get selected techniques
+            const techniques = [];
+            const checkboxes = document.querySelectorAll('input[name="techniques"]:checked');
+            checkboxes.forEach(cb => techniques.push(cb.value));
+            
+            // Prepare data
+            const data = {
+                url: formData.get('url'),
+                project_path: formData.get('project_path'),
+                techniques: techniques.join(','),
+                crawl: formData.get('crawl') === 'on',
+                validate_keys: formData.get('validate_keys') === 'on',
+                reveal_secrets: formData.get('reveal_secrets') === 'on',
+                max_pages: formData.get('max_pages') || 50,
+                max_depth: 5,
+                same_host_only: true,
+                delay: 0.1,
+                max_concurrent: 10
+            };
+            
+            // Show scan status
+            document.getElementById('scanStatus').style.display = 'block';
+            document.getElementById('scanResults').style.display = 'none';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = 'Starting scan...';
+            document.getElementById('cancelScan').style.display = 'inline-block';
+            
+            // Start scan
+            fetch('/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentScanId = data.scan_id;
+                    pollScanStatus();
+                } else {
+                    throw new Error(data.error || 'Failed to start scan');
+                }
+            })
+            .catch(error => {
+                alert('Error starting scan: ' + error.message);
+                document.getElementById('scanStatus').style.display = 'none';
+            });
+        }
+        
+        function pollScanStatus() {
+            if (!currentScanId) return;
+            
+            fetch(`/scan/${currentScanId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'running') {
+                    // Update progress
+                    document.getElementById('statusBadge').className = 'status-badge status-running';
+                    document.getElementById('statusBadge').textContent = 'RUNNING';
+                    document.getElementById('progressText').textContent = `Scanning... (${data.progress.visited || 0} pages visited)`;
+                    
+                    // Update progress bar
+                    const progress = data.progress.visited ? Math.min(100, (data.progress.visited / 50) * 100) : 0;
+                    document.getElementById('progressFill').style.width = `${progress}%`;
+                    
+                    // Poll again
+                    setTimeout(pollScanStatus, 2000);
+                } else if (data.status === 'completed') {
+                    // Scan completed
+                    document.getElementById('statusBadge').className = 'status-badge status-completed';
+                    document.getElementById('statusBadge').textContent = 'COMPLETED';
+                    document.getElementById('progressText').textContent = 'Scan completed!';
+                    document.getElementById('progressFill').style.width = '100%';
+                    document.getElementById('cancelScan').style.display = 'none';
+                    
+                    // Load results
+                    loadScanResults(currentScanId);
+                } else if (data.status === 'failed' || data.status === 'cancelled') {
+                    // Scan failed or cancelled
+                    document.getElementById('statusBadge').className = `status-badge status-${data.status}`;
+                    document.getElementById('statusBadge').textContent = data.status.toUpperCase();
+                    document.getElementById('progressText').textContent = 'Scan did not complete.';
+                    document.getElementById('cancelScan').style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+            });
+        }
+        
+        function loadScanResults(scanId) {
+            fetch(`/scan/${scanId}/summary`)
+            .then(response => response.json())
+            .then(summary => {
+                // Update summary cards
+                const summaryHtml = `
+                    <div class="summary-card">
+                        <h3>${summary.total_findings || 0}</h3>
+                        <p>Total Findings</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3><span class="risk-badge risk-${summary.risk_level || 'info'}">${(summary.risk_level || 'info').toUpperCase()}</span></h3>
+                        <p>Risk Level</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>${summary.risk_score || 0}</h3>
+                        <p>Risk Score</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>${summary.live_keys_confirmed || 0}</h3>
+                        <p>Live Keys Confirmed</p>
+                    </div>
+                `;
+                document.getElementById('summaryCards').innerHTML = summaryHtml;
+                
+                // Show results section
+                document.getElementById('scanStatus').style.display = 'none';
+                document.getElementById('scanResults').style.display = 'block';
+                
+                // Load detailed findings
+                loadDetailedFindings(scanId);
+                
+                // Load history
+                loadHistory();
+            })
+            .catch(error => {
+                console.error('Error loading summary:', error);
+            });
+        }
+        
+        function loadDetailedFindings(scanId) {
+            fetch(`/scan/${scanId}/results`)
+            .then(response => response.json())
+            .then(data => {
+                const findings = data.findings || [];
+                let html = '';
+                
+                findings.forEach(finding => {
+                    const secretValue = revealSecrets && finding.secret_value ? 
+                        finding.secret_value : finding.redacted_value;
+                    
+                    html += `
+                        <div class="finding-item">
+                            <div class="finding-header">
+                                <div class="finding-title">${finding.title}</div>
+                                <span class="finding-severity severity-${finding.severity}">${finding.severity.toUpperCase()}</span>
+                            </div>
+                            <div class="finding-details">
+                                <p><strong>Technique:</strong> ${finding.technique} - ${finding.technique_name}</p>
+                                <p><strong>URL:</strong> ${finding.url}</p>
+                                ${secretValue ? `<p><strong>Secret:</strong> <code>${secretValue}</code></p>` : ''}
+                                <p><strong>Impact:</strong> ${finding.impact}</p>
+                                <p><strong>Remediation:</strong> ${finding.remediation}</p>
+                                ${finding.confirmed_live ? '<p><strong style="color: #dc3545;">STATUS: CONFIRMED LIVE</strong></p>' : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('findingsList').innerHTML = html || '<p>No findings discovered.</p>';
+                
+                // Set up download buttons
+                setupDownloadButtons(scanId);
+            })
+            .catch(error => {
+                console.error('Error loading findings:', error);
+            });
+        }
+        
+        function updateFindingsDisplay() {
+            if (!currentScanId) return;
+            loadDetailedFindings(currentScanId);
+        }
+        
+        function setupDownloadButtons(scanId) {
+            document.getElementById('downloadJson').onclick = function() {
+                window.location.href = `/download/report/${scanId}?format=json&reveal=${revealSecrets}`;
+            };
+            
+            document.getElementById('downloadHtml').onclick = function() {
+                window.location.href = `/download/report/${scanId}?format=html&reveal=${revealSecrets}`;
+            };
+            
+            document.getElementById('downloadPdf').onclick = function() {
+                window.location.href = `/download/report/${scanId}?format=pdf&reveal=${revealSecrets}`;
+            };
+            
+            document.getElementById('downloadWalkthrough').onclick = function() {
+                window.location.href = `/download/walkthrough/${scanId}?format=html&reveal=${revealSecrets}`;
+            };
+        }
+        
+        function loadHistory() {
+            fetch('/history')
+            .then(response => response.json())
+            .then(data => {
+                const scans = data.scans || [];
+                let html = '';
+                
+                scans.forEach(scan => {
+                    html += `
+                        <div class="history-item">
+                            <div>
+                                <strong>${scan.target}</strong>
+                                <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">
+                                    ${new Date(scan.start_time).toLocaleString()} - ${new Date(scan.end_time).toLocaleString()}
+                                </p>
+                            </div>
+                            <div>
+                                <span class="status-badge status-${scan.findings_count > 0 ? 'completed' : 'info'}">
+                                    ${scan.findings_count} findings
+                                </span>
+                                <span class="status-badge status-${scan.risk_level || 'info'}" style="margin-left: 10px;">
+                                    ${(scan.risk_level || 'info').toUpperCase()}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('historyList').innerHTML = html || '<p>No scan history available.</p>';
+            })
+            .catch(error => {
+                console.error('Error loading history:', error);
+            });
+        }
+        
+        function cancelScan() {
+            if (!currentScanId) return;
+            
+            fetch(`/scan/${currentScanId}/cancel`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('statusBadge').className = 'status-badge status-cancelled';
+                    document.getElementById('statusBadge').textContent = 'CANCELLED';
+                    document.getElementById('progressText').textContent = 'Scan cancelled.';
+                    document.getElementById('cancelScan').style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error cancelling scan:', error);
+            });
+        }
+        
+        // Set up cancel button
+        document.getElementById('cancelScan').addEventListener('click', cancelScan);
+    </script>
+</body>
+</html>

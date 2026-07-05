@@ -1,0 +1,130 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local configuration
+config.ini
+secrets.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Data files
+*.sqlite
+*.db
+
+# Build artifacts
+build/
+dist/
+*.exe
+*.dll
+
+# Test files
+_test_*
+*_test.py
+*_test/
+
+# Local development files
+*.local
+*.dev
+*.development
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Flask session
+instance/
+.webassets-cache
+
+# Report files (but not in secretscout directory)
+*.html
+*.pdf
+*.json
+!secretscout/**/*.html
+!secretscout/**/*.json
+!secretscout/data/
+
+# Screenshots
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
