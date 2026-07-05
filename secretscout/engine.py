@@ -709,8 +709,6 @@ class Engine:
         validation_functions = {
             'openai': self._validate_openai_key,
             'anthropic': self._validate_anthropic_key,
-            'github': self._validate_github_token,
-            'stripe': self._validate_stripe_key,
             'razorpay': self._validate_razorpay_key,
             'google': self._validate_google_key,
             'slack': self._validate_slack_token,
@@ -732,26 +730,7 @@ class Engine:
         except Exception:
             return False
     
-    def _validate_github_token(self, token: str) -> bool:
-        try:
-            import requests
-            url = "https://api.github.com/user"
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
-    def _validate_stripe_key(self, key: str) -> bool:
-        try:
-            import requests
-            url = "https://api.stripe.com/v1/balance"
-            auth = (key, '')
-            response = requests.get(url, auth=auth, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
+
     def _validate_razorpay_key(self, key: str) -> bool:
         # Razorpay key validation (simplified)
         return key.startswith('rzp_live_') or key.startswith('rzp_test_')

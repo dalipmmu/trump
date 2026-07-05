@@ -1198,7 +1198,7 @@ def create_dashboard_template():
 </body>
 </html>"""
     
-    with open(template_dir / 'dashboard.html', 'w') as f:
+    with open(template_dir / 'dashboard.html', 'w', encoding='utf-8') as f:
         f.write(template_content)
     
     print(f"Dashboard template created at: {template_dir / 'dashboard.html'}")

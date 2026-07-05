@@ -77,66 +77,7 @@ SECRET_PATTERNS: List[SecretPattern] = [
         provider="anthropic"
     ),
     
-    # AWS Access Key ID
-    SecretPattern(
-        name="AWS Access Key ID",
-        pattern=re.compile(r'AKIA[0-9A-Z]{16,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        provider="aws"
-    ),
-    
-    # AWS Secret Access Key
-    SecretPattern(
-        name="AWS Secret Access Key",
-        pattern=re.compile(r'[a-zA-Z0-9/+=]{40,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        provider="aws"
-    ),
-    
-    # GitHub Token
-    SecretPattern(
-        name="GitHub Token",
-        pattern=re.compile(r'ghp_[a-zA-Z0-9]{36,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        provider="github"
-    ),
-    
-    # GitHub OAuth Token
-    SecretPattern(
-        name="GitHub OAuth Token",
-        pattern=re.compile(r'gho_[a-zA-Z0-9]{36,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Credential",
-        provider="github"
-    ),
-    
-    # Stripe API Keys
-    SecretPattern(
-        name="Stripe Secret Key",
-        pattern=re.compile(r'sk_live_[a-zA-Z0-9]{24,}', re.IGNORECASE),
-        severity="critical",
-        data_class="Financial",
-        provider="stripe"
-    ),
-    SecretPattern(
-        name="Stripe Publishable Key",
-        pattern=re.compile(r'pk_live_[a-zA-Z0-9]{24,}', re.IGNORECASE),
-        severity="high",
-        data_class="Financial",
-        provider="stripe",
-        allowlist=True  # Public by design
-    ),
-    SecretPattern(
-        name="Stripe Test Key",
-        pattern=re.compile(r'sk_test_[a-zA-Z0-9]{24,}', re.IGNORECASE),
-        severity="high",
-        data_class="Financial",
-        provider="stripe"
-    ),
-    
+
     # Razorpay Keys (Critical for bounty hunting)
     SecretPattern(
         name="Razorpay Key ID",
@@ -381,14 +322,7 @@ SENSITIVE_PATTERNS: List[SecretPattern] = [
         data_class="Infra"
     ),
     
-    # AWS S3 Buckets
-    SecretPattern(
-        name="AWS S3 Bucket",
-        pattern=re.compile(r'[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.s3\.amazonaws\.com|s3:\/\/[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]', re.IGNORECASE),
-        severity="medium",
-        data_class="Infra"
-    ),
-    
+
     # Internal IP Addresses
     SecretPattern(
         name="Internal IP Address",
@@ -498,8 +432,6 @@ CONFIG_FILE_PATTERNS = [
     r'\.git/config',
     r'\.git/credentials',
     r'\.npmrc',
-    r'\.aws/credentials',
-    r'\.aws/config',
     r'config\.json',
     r'config\.yaml',
     r'config\.yml',
