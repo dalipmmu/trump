@@ -13,8 +13,7 @@ from .fetcher import Fetcher
 from .crawler import Crawler
 from .patterns import (
     find_secrets_in_text, redact_secret, SOURCE_MAP_PATTERNS, 
-    CONFIG_FILE_PATTERNS, DEBUG_ENDPOINT_PATTERNS, GIT_PATTERNS,
-    is_likely_secret
+    CONFIG_FILE_PATTERNS, DEBUG_ENDPOINT_PATTERNS, GIT_PATTERNS
 )
 from . import TECHNIQUES, ALL_TECHNIQUE_IDS
 
