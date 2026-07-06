@@ -24,6 +24,10 @@ TECHNIQUES = {
     "t13": {"name": "CORS misconfiguration", "description": "Detect dangerous CORS configurations"},
     "t14": {"name": "Rate limit testing", "description": "Check for missing rate limiting on APIs"},
     "t15": {"name": "Error message analysis", "description": "Find information leaks in error responses"},
+    # NSA-Grade Advanced Techniques
+    "t16": {"name": "JavaScript Variable Tracing", "description": "Trace JS variables with secret-like names and high-entropy values"},
+    "t17": {"name": "GitHub Token Deep Scan", "description": "Advanced detection of all GitHub token types including fine-grained PATs"},
+    "t18": {"name": "Database Connection String Deep Scan", "description": "Detect database credentials in connection strings (MongoDB, MySQL, PostgreSQL, Redis)"},
 }
 
 # All technique IDs

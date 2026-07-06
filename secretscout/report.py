@@ -787,3 +787,582 @@ This scan found security vulnerabilities that could put your business at risk. B
         print("Error: reportlab library required for PDF generation. Install with: pip install reportlab")
     except Exception as e:
         print(f"Error generating PDF report: {str(e)}")
+
+
+# ============================================================================
+# NSA-GRADE REPORTING SYSTEM
+# ============================================================================
+
+class NSAReportGenerator:
+    """
+    NSA-Grade Intelligence Report Generator
+    Generates comprehensive security intelligence reports
+    """
+    
+    def __init__(self):
+        self.risk_scores = {
+            'critical': 100,
+            'high': 75,
+            'medium': 50,
+            'low': 25
+        }
+        self.severity_colors = {
+            'critical': '#dc3545',  # Red
+            'high': '#fd7e14',     # Orange
+            'medium': '#ffc107',   # Yellow
+            'low': '#17a2b8'       # Cyan
+        }
+    
+    def generate_nsa_report(self, result: ScanResult, reveal_secrets: bool = False) -> Dict:
+        """
+        Generate NSA-grade intelligence report
+        
+        Args:
+            result: ScanResult containing findings
+            reveal_secrets: Whether to reveal full secret values
+            
+        Returns:
+            Dictionary containing full NSA-grade report
+        """
+        findings = result.store.findings if result.store else []
+        
+        # Group by severity
+        by_severity = {}
+        for finding in findings:
+            sev = finding.severity.value if hasattr(finding.severity, 'value') else finding.severity
+            if sev not in by_severity:
+                by_severity[sev] = []
+            by_severity[sev].append(finding)
+        
+        # Calculate risk score
+        total_risk = sum(self.risk_scores.get(
+            f.severity.value if hasattr(f.severity, 'value') else f.severity, 0
+        ) for f in findings)
+        avg_risk = total_risk / len(findings) if findings else 0
+        
+        # Identify attack chains
+        attack_chains = self.identify_attack_chains(findings)
+        
+        # Generate executive summary
+        executive_summary = self.generate_executive_summary(result, avg_risk, findings)
+        
+        # Generate technical findings
+        technical_findings = self.generate_technical_findings(findings, reveal_secrets)
+        
+        # Generate remediation roadmap
+        remediation_roadmap = self.generate_remediation_roadmap(findings)
+        
+        # Generate statistics
+        statistics = self.generate_statistics(findings, result)
+        
+        return {
+            'metadata': {
+                'scan_id': result.config.scan_id if result.config else 'unknown',
+                'target': result.config.url if result.config and result.config.url else 
+                         (result.config.project_path if result.config else 'unknown'),
+                'timestamp': datetime.now().isoformat(),
+                'scanner_version': 'NSA-GRADE v2.0',
+                'classification': self.classify_scan(findings),
+                'duration_seconds': result.end_time - result.start_time if result.end_time and result.start_time else 0
+            },
+            'executive_summary': executive_summary,
+            'risk_assessment': {
+                'overall_risk_score': min(100, avg_risk),
+                'risk_level': self.risk_to_level(avg_risk),
+                'findings_by_severity': {k: len(v) for k, v in by_severity.items()},
+                'total_findings': len(findings),
+                'live_validated_findings': len([f for f in findings if f.confirmed_live])
+            },
+            'attack_chains': attack_chains,
+            'technical_findings': technical_findings,
+            'remediation_roadmap': remediation_roadmap,
+            'statistics': statistics,
+            'appendices': {
+                'methodology': self.get_methodology(),
+                'tools_used': ['SecretScout PRO', 'NSA Patterns', 'Live Validation', 'Context-Aware Scanning'],
+                'references': self.get_references(findings),
+                'glossary': self.get_glossary()
+            }
+        }
+    
+    def identify_attack_chains(self, findings: List[Finding]) -> List[Dict]:
+        """Identify potential attack chains from findings"""
+        chains = []
+        
+        if not findings:
+            return chains
+        
+        # Group by data class
+        by_class = {}
+        for f in findings:
+            dc = f.data_class.value if hasattr(f.data_class, 'value') else f.data_class
+            if dc not in by_class:
+                by_class[dc] = []
+            by_class[dc].append(f)
+        
+        # Chain 1: Credential Access + Infrastructure Compromise
+        if 'Credential' in by_class and 'Infra' in by_class:
+            chains.append({
+                'id': 'chain-001',
+                'name': 'Credential Access + Infrastructure Compromise',
+                'severity': 'critical',
+                'description': 'Attacker could use exposed credentials to access infrastructure components',
+                'findings': by_class['Credential'] + by_class['Infra'],
+                'mitigation': ['Rotate all exposed credentials immediately', 
+                             'Audit infrastructure access logs',
+                             'Implement network segmentation',
+                             'Enable multi-factor authentication'],
+                'cvss_base_score': 9.8,
+                'cvss_vector': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H'
+            })
+        
+        # Chain 2: Supply Chain Compromise Risk
+        source_providers = ['github', 'gitlab', 'bitbucket', 'npm', 'pypi']
+        if any(f.provider and f.provider.lower() in source_providers for f in findings) and 'Source' in by_class:
+            chains.append({
+                'id': 'chain-002',
+                'name': 'Supply Chain Compromise Risk',
+                'severity': 'critical',
+                'description': 'Exposed source code tokens could allow supply chain attacks via dependency hijacking',
+                'findings': [f for f in findings if f.provider and f.provider.lower() in source_providers] + by_class.get('Source', []),
+                'mitigation': ['Rotate all source code tokens immediately',
+                             'Audit repository access and permissions',
+                             'Implement code signing for dependencies',
+                             'Use dependency verification tools'],
+                'cvss_base_score': 9.3,
+                'cvss_vector': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:L'
+            })
+        
+        # Chain 3: API Abuse Potential
+        api_findings = [f for f in findings if f.data_class.value == 'Credential' and f.provider and f.provider in ['openai', 'anthropic', 'google', 'razorpay', 'stripe', 'aws']]
+        if len(api_findings) >= 2:
+            chains.append({
+                'id': 'chain-003',
+                'name': 'API Abuse Potential',
+                'severity': 'high',
+                'description': 'Multiple API keys exposed could enable automated abuse and cost exploitation',
+                'findings': api_findings,
+                'mitigation': ['Rotate all exposed API keys',
+                             'Implement API key rotation policies',
+                             'Set up usage alerts and rate limiting',
+                             'Use API gateways for centralized management'],
+                'cvss_base_score': 8.6,
+                'cvss_vector': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:L/I:L/A:H'
+            })
+        
+        # Chain 4: Data Exfiltration Risk
+        pii_findings = [f for f in findings if f.data_class.value == 'PII']
+        financial_findings = [f for f in findings if f.data_class.value == 'Financial']
+        if pii_findings or financial_findings:
+            chains.append({
+                'id': 'chain-004',
+                'name': 'Data Exfiltration Risk',
+                'severity': 'high',
+                'description': 'Exposed PII or financial data could be exfiltrated by attackers',
+                'findings': pii_findings + financial_findings,
+                'mitigation': ['Encrypt all sensitive data at rest and in transit',
+                             'Implement data loss prevention (DLP) controls',
+                             'Mask sensitive data in logs and error messages',
+                             'Conduct regular data classification audits'],
+                'cvss_base_score': 8.2,
+                'cvss_vector': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:L'
+            })
+        
+        # If no chains identified, add a default
+        if not chains and findings:
+            chains.append({
+                'id': 'chain-000',
+                'name': 'General Exposure Risk',
+                'severity': 'medium',
+                'description': 'Exposed secrets increase the attack surface',
+                'findings': findings,
+                'mitigation': ['Review and rotate all exposed secrets',
+                             'Implement secret scanning in CI/CD pipeline',
+                             'Educate developers on secure coding practices'],
+                'cvss_base_score': 6.5,
+                'cvss_vector': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:L/I:L/A:L'
+            })
+        
+        return chains
+    
+    def generate_executive_summary(self, result: ScanResult, avg_risk: float, findings: List[Finding]) -> Dict:
+        """Generate executive summary for NSA report"""
+        risk_level = self.risk_to_level(avg_risk)
+        
+        # Count by severity
+        critical_count = len([f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'critical'])
+        high_count = len([f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'high'])
+        
+        # Generate summary based on risk level
+        if risk_level == 'critical':
+            summary = "CRITICAL security vulnerabilities detected. Immediate action required. Multiple high-severity findings indicate potential for significant data breach or system compromise."
+            recommendation = "Initiate incident response procedures immediately. Rotate all exposed credentials and conduct a full security audit."
+        elif risk_level == 'high':
+            summary = "HIGH security vulnerabilities detected. Prompt remediation recommended. Findings suggest elevated risk of unauthorized access or data exposure."
+            recommendation = "Prioritize remediation of high-severity findings within 24-48 hours. Review and rotate exposed credentials."
+        elif risk_level == 'medium':
+            summary = "MEDIUM security vulnerabilities detected. Remediation recommended. Findings indicate potential for information disclosure or limited access."
+            recommendation = "Address medium-severity findings within 1-2 weeks. Implement additional security controls."
+        else:
+            summary = "LOW security vulnerabilities detected. Monitoring recommended. Findings suggest minor issues that should be addressed during regular maintenance."
+            recommendation = "Review and address low-severity findings during the next maintenance window."
+        
+        return {
+            'summary': summary,
+            'recommendation': recommendation,
+            'key_metrics': {
+                'total_findings': len(findings),
+                'critical_findings': critical_count,
+                'high_findings': high_count,
+                'live_validated': len([f for f in findings if f.confirmed_live]),
+                'estimated_impact': self.estimate_impact(avg_risk, findings)
+            }
+        }
+    
+    def generate_technical_findings(self, findings: List[Finding], reveal_secrets: bool = False) -> List[Dict]:
+        """Generate detailed technical findings"""
+        technical_findings = []
+        
+        for i, finding in enumerate(findings, 1):
+            severity = finding.severity.value if hasattr(finding.severity, 'value') else finding.severity
+            data_class = finding.data_class.value if hasattr(finding.data_class, 'value') else finding.data_class
+            
+            secret_display = finding.secret_value if reveal_secrets else finding.redacted_value
+            
+            technical_findings.append({
+                'id': i,
+                'title': finding.title,
+                'technique': finding.technique,
+                'technique_name': TECHNIQUES.get(finding.technique, {}).get('name', finding.technique),
+                'severity': severity,
+                'severity_color': self.severity_colors.get(severity, '#6c757d'),
+                'data_class': data_class,
+                'url': finding.url,
+                'secret_value': secret_display,
+                'provider': finding.provider,
+                'impact': finding.impact,
+                'remediation': finding.remediation,
+                'confirmed_live': finding.confirmed_live,
+                'allowlist': finding.allowlist,
+                'cvss_base_score': self.estimate_cvss_score(severity, data_class, finding.confirmed_live),
+                'cvss_vector': self.generate_cvss_vector(severity, data_class),
+                'risk_score': self.risk_scores.get(severity, 0)
+            })
+        
+        return technical_findings
+    
+    def generate_remediation_roadmap(self, findings: List[Finding]) -> Dict:
+        """Generate prioritized remediation roadmap"""
+        # Group by severity for prioritization
+        critical = [f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'critical']
+        high = [f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'high']
+        medium = [f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'medium']
+        low = [f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'low']
+        
+        # Generate roadmap items
+        roadmap = []
+        
+        # Critical items - Immediate (0-24 hours)
+        if critical:
+            roadmap.append({
+                'priority': 'P0 - Immediate',
+                'timeframe': '0-24 hours',
+                'findings': len(critical),
+                'actions': [
+                    'Rotate all critical credentials immediately',
+                    'Revoke exposed API keys and tokens',
+                    'Implement temporary access restrictions',
+                    'Notify security team and stakeholders'
+                ]
+            })
+        
+        # High items - Urgent (1-3 days)
+        if high:
+            roadmap.append({
+                'priority': 'P1 - Urgent',
+                'timeframe': '1-3 days',
+                'findings': len(high),
+                'actions': [
+                    'Rotate high-severity credentials',
+                    'Implement additional monitoring',
+                    'Review access controls',
+                    'Conduct impact assessment'
+                ]
+            })
+        
+        # Medium items - Important (1-2 weeks)
+        if medium:
+            roadmap.append({
+                'priority': 'P2 - Important',
+                'timeframe': '1-2 weeks',
+                'findings': len(medium),
+                'actions': [
+                    'Address medium-severity findings',
+                    'Implement preventive controls',
+                    'Update security policies',
+                    'Conduct security awareness training'
+                ]
+            })
+        
+        # Low items - Standard (1 month)
+        if low:
+            roadmap.append({
+                'priority': 'P3 - Standard',
+                'timeframe': '1 month',
+                'findings': len(low),
+                'actions': [
+                    'Address low-severity findings',
+                    'Implement best practices',
+                    'Review during regular maintenance',
+                    'Document lessons learned'
+                ]
+            })
+        
+        return {
+            'items': roadmap,
+            'total_effort_estimate': self.estimate_effort(critical, high, medium, low)
+        }
+    
+    def generate_statistics(self, findings: List[Finding], result: ScanResult) -> Dict:
+        """Generate detailed statistics"""
+        # Count by technique
+        by_technique = {}
+        for finding in findings:
+            tech = finding.technique
+            if tech not in by_technique:
+                by_technique[tech] = 0
+            by_technique[tech] += 1
+        
+        # Count by data class
+        by_data_class = {}
+        for finding in findings:
+            dc = finding.data_class.value if hasattr(finding.data_class, 'value') else finding.data_class
+            if dc not in by_data_class:
+                by_data_class[dc] = 0
+            by_data_class[dc] += 1
+        
+        # Count by provider
+        by_provider = {}
+        for finding in findings:
+            if finding.provider:
+                if finding.provider not in by_provider:
+                    by_provider[finding.provider] = 0
+                by_provider[finding.provider] += 1
+        
+        return {
+            'by_technique': by_technique,
+            'by_data_class': by_data_class,
+            'by_provider': by_provider,
+            'live_validation_rate': self.calculate_validation_rate(findings)
+        }
+    
+    def classify_scan(self, findings: List[Finding]) -> str:
+        """Classify the scan based on findings"""
+        if not findings:
+            return 'CLEAN'
+        
+        critical_count = len([f for f in findings if (f.severity.value if hasattr(f.severity, 'value') else f.severity) == 'critical'])
+        
+        if critical_count > 0:
+            return 'CRITICAL'
+        elif len(findings) > 5:
+            return 'HIGH_RISK'
+        elif len(findings) > 0:
+            return 'MEDIUM_RISK'
+        return 'LOW_RISK'
+    
+    def risk_to_level(self, risk_score: float) -> str:
+        """Convert risk score to level"""
+        if risk_score >= 75:
+            return 'critical'
+        elif risk_score >= 50:
+            return 'high'
+        elif risk_score >= 25:
+            return 'medium'
+        return 'low'
+    
+    def estimate_impact(self, avg_risk: float, findings: List[Finding]) -> str:
+        """Estimate overall impact"""
+        if avg_risk >= 75:
+            return 'Potential for significant data breach or system compromise'
+        elif avg_risk >= 50:
+            return 'Elevated risk of unauthorized access or data exposure'
+        elif avg_risk >= 25:
+            return 'Potential for information disclosure or limited access'
+        return 'Minor security issues requiring attention'
+    
+    def estimate_cvss_score(self, severity: str, data_class: str, confirmed_live: bool) -> float:
+        """Estimate CVSS base score"""
+        base_scores = {
+            'critical': 9.0,
+            'high': 7.0,
+            'medium': 5.0,
+            'low': 3.0
+        }
+        
+        score = base_scores.get(severity, 3.0)
+        
+        # Adjust based on data class
+        if data_class == 'Credential':
+            score = min(10.0, score + 1.0)
+        elif data_class == 'Financial':
+            score = min(10.0, score + 1.5)
+        elif data_class == 'PII':
+            score = min(10.0, score + 1.2)
+        
+        # Adjust for live validation
+        if confirmed_live:
+            score = min(10.0, score + 0.5)
+        
+        return round(score, 1)
+    
+    def generate_cvss_vector(self, severity: str, data_class: str) -> str:
+        """Generate CVSS vector string"""
+        # Simplified CVSS vector generation
+        attack_vector = 'N'  # Network
+        attack_complexity = 'L'  # Low
+        privileges_required = 'N'  # None
+        user_interaction = 'N'  # None
+        
+        if severity == 'critical':
+            scope = 'C'  # Changed
+            confidentiality = 'H'
+            integrity = 'H'
+            availability = 'H'
+        elif severity == 'high':
+            scope = 'C'
+            confidentiality = 'H'
+            integrity = 'L'
+            availability = 'L'
+        elif severity == 'medium':
+            scope = 'U'  # Unchanged
+            confidentiality = 'L'
+            integrity = 'L'
+            availability = 'N'
+        else:
+            scope = 'U'
+            confidentiality = 'L'
+            integrity = 'N'
+            availability = 'N'
+        
+        return f'CVSS:3.1/AV:{attack_vector}/AC:{attack_complexity}/PR:{privileges_required}/UI:{user_interaction}/S:{scope}/C:{confidentiality}/I:{integrity}/A:{availability}'
+    
+    def calculate_validation_rate(self, findings: List[Finding]) -> Dict:
+        """Calculate validation statistics"""
+        total = len(findings)
+        if total == 0:
+            return {'rate': 0, 'validated': 0, 'unvalidated': 0}
+        
+        validated = len([f for f in findings if f.confirmed_live])
+        return {
+            'rate': round((validated / total) * 100, 1),
+            'validated': validated,
+            'unvalidated': total - validated
+        }
+    
+    def estimate_effort(self, critical: List, high: List, medium: List, low: List) -> str:
+        """Estimate remediation effort"""
+        total = len(critical) + len(high) + len(medium) + len(low)
+        if total == 0:
+            return 'Minimal'
+        
+        effort_hours = 0
+        effort_hours += len(critical) * 4  # 4 hours per critical
+        effort_hours += len(high) * 2     # 2 hours per high
+        effort_hours += len(medium) * 1   # 1 hour per medium
+        effort_hours += len(low) * 0.5   # 0.5 hours per low
+        
+        if effort_hours < 8:
+            return f'~{effort_hours} hours (Low)'
+        elif effort_hours < 40:
+            return f'~{effort_hours} hours (Medium)'
+        elif effort_hours < 160:
+            return f'~{effort_hours} hours (High)'
+        else:
+            return f'~{effort_hours} hours (Critical - Dedicated team required)'
+    
+    def get_methodology(self) -> str:
+        """Get scanning methodology description"""
+        return """
+        NSA-Grade Secret Detection Methodology:
+        
+        1. PATTERN MATCHING: Uses advanced regex patterns for 50+ secret types
+        2. CONTEXT ANALYSIS: Validates findings based on surrounding code context
+        3. ENTROPY ANALYSIS: Calculates Shannon entropy to identify high-entropy strings
+        4. LIVE VALIDATION: Tests API keys against provider endpoints (when enabled)
+        5. ATTACK CHAIN ANALYSIS: Identifies potential attack paths and combinations
+        6. FALSE POSITIVE FILTERING: Eliminates common false positives using smart rules
+        
+        Techniques Used:
+        - t1-t10: Original SecretScout techniques
+        - t11-t15: Advanced API vulnerability detection
+        - t16: JavaScript Variable Tracing (NSA-Grade)
+        - t17: GitHub Token Deep Scan (NSA-Grade)
+        - t18: Database Connection String Deep Scan (NSA-Grade)
+        """
+    
+    def get_references(self, findings: List[Finding]) -> List[str]:
+        """Get relevant references based on findings"""
+        references = [
+            "OWASP API Security Top 10",
+            "CWE/SANS Top 25 Most Dangerous Software Weaknesses",
+            "NIST Special Publication 800-63B: Digital Identity Guidelines"
+        ]
+        
+        # Add provider-specific references
+        providers = set(f.provider for f in findings if f.provider)
+        if 'openai' in providers:
+            references.append("OpenAI API Security Best Practices")
+        if 'razorpay' in providers:
+            references.append("Razorpay Security Documentation")
+        if 'github' in providers:
+            references.append("GitHub Token Security Guide")
+        
+        return references
+    
+    def get_glossary(self) -> Dict[str, str]:
+        """Get security terminology glossary"""
+        return {
+            'API Key': 'A unique identifier used to authenticate and authorize API requests',
+            'Secret': 'Any sensitive data including API keys, passwords, tokens, or credentials',
+            'PII': 'Personally Identifiable Information - data that can identify an individual',
+            'CVSS': 'Common Vulnerability Scoring System - standard for assessing vulnerability severity',
+            'Attack Chain': 'A sequence of vulnerabilities that can be exploited together for greater impact',
+            'Entropy': 'A measure of randomness or unpredictability in data',
+            'Live Validation': 'Testing discovered credentials against provider APIs to confirm validity',
+            'False Positive': 'A finding that appears to be a vulnerability but is not actually a security issue'
+        }
+
+
+# Create a global instance for easy access
+nsa_report_generator = NSAReportGenerator()
+
+
+def generate_nsa_report(result: ScanResult, output_path: str, reveal_secrets: bool = False) -> str:
+    """
+    Generate NSA-grade report and save to file
+    
+    Args:
+        result: ScanResult containing findings
+        output_path: Path to save the report
+        reveal_secrets: Whether to reveal full secret values
+        
+    Returns:
+        Path to the generated report
+    """
+    report_data = nsa_report_generator.generate_nsa_report(result, reveal_secrets)
+    
+    # Save as JSON
+    if output_path.endswith('.json'):
+        with open(output_path, 'w') as f:
+            json.dump(report_data, f, indent=2, default=str)
+        return output_path
+    
+    # For other formats, convert to appropriate format
+    # For now, just save as JSON with a different extension
+    if not output_path.endswith('.json'):
+        output_path = output_path + '.json'
+        with open(output_path, 'w') as f:
+            json.dump(report_data, f, indent=2, default=str)
+    
+    return output_path

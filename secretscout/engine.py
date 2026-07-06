@@ -13,9 +13,176 @@ from .fetcher import Fetcher
 from .crawler import Crawler
 from .patterns import (
     find_secrets_in_text, redact_secret, SOURCE_MAP_PATTERNS, 
-    CONFIG_FILE_PATTERNS, DEBUG_ENDPOINT_PATTERNS, GIT_PATTERNS
+    CONFIG_FILE_PATTERNS, DEBUG_ENDPOINT_PATTERNS, GIT_PATTERNS,
+    calculate_shannon_entropy
 )
 from . import TECHNIQUES, ALL_TECHNIQUE_IDS
+
+
+# ============================================================================
+# NSA-GRADE LIVE VALIDATION SYSTEM
+# ============================================================================
+
+# Validation endpoints for different providers
+VALIDATION_ENDPOINTS = {
+    'openai': {
+        'url': 'https://api.openai.com/v1/models',
+        'method': 'GET',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'anthropic': {
+        'url': 'https://api.anthropic.com/v1/messages',
+        'method': 'GET',
+        'headers': {'x-api-key': '{key}', 'anthropic-version': '2023-06-01'},
+        'valid_status': [200, 401, 403],
+        'timeout': 10
+    },
+    'razorpay': {
+        'url': 'https://api.razorpay.com/v1/payments',
+        'method': 'GET',
+        'auth': ('{key}', ''),
+        'valid_status': [200, 401, 403],
+        'timeout': 15
+    },
+    'google': {
+        'url': 'https://www.googleapis.com/oauth2/v3/tokeninfo',
+        'method': 'GET',
+        'params': {'access_token': '{key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'slack': {
+        'url': 'https://slack.com/api/auth.test',
+        'method': 'GET',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'sendgrid': {
+        'url': 'https://api.sendgrid.com/v3/scopes',
+        'method': 'GET',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'twilio': {
+        'url': 'https://api.twilio.com/2010-04-01/Account',
+        'method': 'GET',
+        'auth': ('{sid}', '{token}'),
+        'valid_status': [200, 401],
+        'timeout': 10
+    },
+    'huggingface': {
+        'url': 'https://api.huggingface.co/whoami-v2',
+        'method': 'GET',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'groq': {
+        'url': 'https://api.groq.com/openai/v1/models',
+        'method': 'GET',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'replicate': {
+        'url': 'https://api.replicate.com/v1/models',
+        'method': 'GET',
+        'headers': {'Authorization': 'Token {key}'},
+        'valid_status': [200],
+        'timeout': 10
+    },
+    'perplexity': {
+        'url': 'https://api.perplexity.ai/chat/completions',
+        'method': 'POST',
+        'headers': {'Authorization': 'Bearer {key}'},
+        'valid_status': [200, 401],
+        'timeout': 10
+    }
+}
+
+
+def validate_key_with_provider(key: str, provider: str) -> bool:
+    """
+    NSA-Grade key validation with the provider's API
+    
+    Args:
+        key: The API key/secret to validate
+        provider: The provider name (must be in VALIDATION_ENDPOINTS)
+    
+    Returns:
+        True if the key appears to be valid, False otherwise
+    """
+    if not key or not provider:
+        return False
+    
+    if provider not in VALIDATION_ENDPOINTS:
+        return False
+    
+    config = VALIDATION_ENDPOINTS[provider]
+    
+    try:
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        # Configure session with retry logic
+        session = requests.Session()
+        retry = Retry(
+            total=2,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504, 429]
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        url = config['url']
+        method = config['method'].upper()
+        timeout = config.get('timeout', 10)
+        
+        # Prepare request based on method
+        if method == 'GET':
+            if 'headers' in config:
+                headers = {k: v.format(key=key) for k, v in config['headers'].items()}
+                response = session.get(url, headers=headers, timeout=timeout)
+            elif 'auth' in config:
+                auth = tuple(v.format(key=key) for v in config['auth'])
+                response = session.get(url, auth=auth, timeout=timeout)
+            elif 'params' in config:
+                params = {k: v.format(key=key) for k, v in config['params'].items()}
+                response = session.get(url, params=params, timeout=timeout)
+            else:
+                response = session.get(url, timeout=timeout)
+                
+        elif method == 'POST':
+            if 'headers' in config:
+                headers = {k: v.format(key=key) for k, v in config['headers'].items()}
+                response = session.post(url, headers=headers, timeout=timeout)
+            elif 'auth' in config:
+                auth = tuple(v.format(key=key) for v in config['auth'])
+                response = session.post(url, auth=auth, timeout=timeout)
+            else:
+                response = session.post(url, timeout=timeout)
+        else:
+            return False
+        
+        # Check if status code indicates valid key
+        return response.status_code in config['valid_status']
+        
+    except requests.exceptions.Timeout:
+        # Timeout might mean the key is valid but the endpoint is slow
+        return True
+    except requests.exceptions.ConnectionError:
+        # Connection error - can't determine
+        return False
+    except Exception as e:
+        # Other errors - log and return False
+        print(f"[!] Validation error for {provider}: {e}")
+        return False
 
 
 @dataclass
@@ -184,6 +351,13 @@ class Engine:
                 self._scan_rate_limits()
             elif technique_id == "t15":
                 self._scan_error_messages()
+            # NSA-Grade Advanced Techniques
+            elif technique_id == "t16":
+                self._scan_javascript_variables()
+            elif technique_id == "t17":
+                self._scan_github_tokens()
+            elif technique_id == "t18":
+                self._scan_database_connections()
         except Exception as e:
             self.errors.append(f"Error in technique {technique_id}: {str(e)}")
     
@@ -703,102 +877,11 @@ class Engine:
             except Exception as e:
                 self.errors.append(f"Key validation failed for {finding.provider}: {str(e)}")
     
-    def _validate_key(self, key: str, provider: str) -> bool:
-        """Validate an API key with its provider"""
-        validation_functions = {
-            'openai': self._validate_openai_key,
-            'anthropic': self._validate_anthropic_key,
-            'razorpay': self._validate_razorpay_key,
-            'google': self._validate_google_key,
-            'slack': self._validate_slack_token,
-            'sendgrid': self._validate_sendgrid_key,
-            'huggingface': self._validate_huggingface_token,
-        }
-        
-        if provider in validation_functions:
-            return validation_functions[provider](key)
-        return False
-    
-    def _validate_openai_key(self, key: str) -> bool:
-        try:
-            import requests
-            url = "https://api.openai.com/v1/models"
-            headers = {"Authorization": f"Bearer {key}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
 
-    def _validate_razorpay_key(self, key: str) -> bool:
-        """Validate Razorpay key by checking if it's a valid key ID format
-        For secrets, we check if it's a 32-character hex string (Razorpay secret format)
-        """
-        try:
-            import requests
-            # If it's a key ID (rzp_live_ or rzp_test_), validate it
-            if key.startswith('rzp_live_') or key.startswith('rzp_test_'):
-                # Extract the key ID part
-                key_id = key
-                # Try to validate with Razorpay API
-                url = "https://api.razorpay.com/v1/payments"
-                auth = (key_id, "")
-                response = requests.get(url, auth=auth, timeout=15)
-                # If we get 401, the key format is valid but might be invalid
-                # If we get 403 or other errors, it might still be valid
-                # We consider it valid if we don't get a connection error
-                return response.status_code in [200, 401, 403]
-            # For secret keys (32-char hex), we can't validate without the key ID
-            # But we can check the format is correct
-            elif len(key) == 32 and all(c in '0123456789abcdefABCDEF' for c in key):
-                # This is a valid hex string of the right length
-                # We'll consider it potentially valid but need more context
-                return True
-            return False
-        except Exception:
-            return False
-    
-    def _validate_google_key(self, key: str) -> bool:
-        try:
-            import requests
-            url = "https://www.googleapis.com/oauth2/v3/tokeninfo"
-            params = {"access_token": key}
-            response = requests.get(url, params=params, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
-    def _validate_slack_token(self, token: str) -> bool:
-        try:
-            import requests
-            url = "https://slack.com/api/auth.test"
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            data = response.json()
-            return data.get('ok', False)
-        except Exception:
-            return False
-    
-    def _validate_sendgrid_key(self, key: str) -> bool:
-        try:
-            import requests
-            url = "https://api.sendgrid.com/v3/scopes"
-            headers = {"Authorization": f"Bearer {key}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
-    def _validate_huggingface_token(self, token: str) -> bool:
-        try:
-            import requests
-            url = "https://huggingface.co/api/whoami-v2"
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
-    
+    def _validate_key(self, key: str, provider: str) -> bool:
+        """Validate an API key with its provider using NSA-grade validation"""
+        return validate_key_with_provider(key, provider)
+
     def _scan_cors(self):
         """Technique 13: Scan for CORS misconfigurations"""
         if not self.config.url:
@@ -929,6 +1012,171 @@ class Engine:
             remediation=f"Remove {secret['type']} from client-side code. Use environment variables or server-side configuration.",
             impact=f"Exposure of {secret['type']} could allow attackers to access {secret['data_class']} data or services."
         )
+
+
+    # ============================================================================
+    # NSA-GRADE ADVANCED SCANNING TECHNIQUES (t16-t18)
+    # ============================================================================
+
+    def _scan_javascript_variables(self, text: str, url: str):
+        """
+        Technique t16: JavaScript Variable Tracing
+        Trace JavaScript variables that might contain secrets
+        """
+        findings = []
+        
+        # Pattern: var x = "secret_value" or const x = 'value' or let x = value
+        var_pattern = re.compile(
+            r'(?:var|let|const|function|window\.)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*[\'"]([^\'"]+)[\'"]',
+            re.IGNORECASE
+        )
+        
+        secret_keywords = ['key', 'secret', 'token', 'password', 'api', 'auth', 'credential', 'private', 'access']
+        
+        for match in var_pattern.finditer(text):
+            var_name = match.group(1)
+            var_value = match.group(2)
+            
+            # Check if variable name suggests it's a secret
+            var_name_lower = var_name.lower()
+            if any(keyword in var_name_lower for keyword in secret_keywords):
+                # Check if value looks like a secret
+                if len(var_value) > 8:
+                    entropy = calculate_shannon_entropy(var_value)
+                    if entropy >= 3.0:
+                        findings.append(Finding(
+                            title=f"Suspicious JavaScript Variable: {var_name}",
+                            technique="t16",
+                            technique_name="JavaScript Variable Tracing",
+                            url=url,
+                            secret_value=var_value,
+                            severity="high",
+                            data_class="Credential",
+                            impact="Potential API key or secret stored in JavaScript variable",
+                            remediation="Move secrets to server-side environment variables or use secure storage"
+                        ))
+        
+        return findings
+
+    def _scan_github_tokens(self, text: str, url: str):
+        """
+        Technique t17: GitHub Token Deep Scan
+        Detect GitHub tokens with advanced patterns
+        """
+        findings = []
+        
+        # GitHub Personal Access Tokens (new format)
+        github_pat = re.compile(r'ghp_[a-zA-Z0-9]{36,255}')
+        # GitHub OAuth Tokens
+        github_oauth = re.compile(r'gho_[a-zA-Z0-9]{36,255}')
+        # GitHub Server-to-Server Tokens
+        github_gsu = re.compile(r'ghs_[a-zA-Z0-9]{36,255}')
+        # GitHub Refresh Tokens
+        github_rpt = re.compile(r'ghr_[a-zA-Z0-9]{36,255}')
+        # GitHub Fine-grained PAT
+        github_fine = re.compile(r'github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}')
+        
+        token_patterns = [
+            (github_pat, "GitHub Personal Access Token (Classic)"),
+            (github_oauth, "GitHub OAuth Token"),
+            (github_gsu, "GitHub Server-to-Server Token"),
+            (github_rpt, "GitHub Refresh Token"),
+            (github_fine, "GitHub Fine-grained Personal Access Token")
+        ]
+        
+        for pattern, token_type in token_patterns:
+            for match in pattern.finditer(text):
+                token = match.group(0)
+                findings.append(Finding(
+                    title=f"{token_type} Found",
+                    technique="t17",
+                    technique_name="GitHub Token Deep Scan",
+                    url=url,
+                    secret_value=token,
+                    severity="critical",
+                    data_class="Credential",
+                    provider="github",
+                    impact="GitHub tokens provide access to repositories and organization data. Immediate revocation required.",
+                    remediation="Revoke token immediately via GitHub Settings > Developer Settings > Personal Access Tokens"
+                ))
+        
+        return findings
+
+    def _scan_database_connections(self, text: str, url: str):
+        """
+        Technique t18: Database Connection String Deep Scan
+        Detect database connection strings with credentials
+        """
+        findings = []
+        
+        # MongoDB with credentials
+        mongo_pattern = re.compile(
+            r'mongodb(?:\+srv)?://([^:]+):([^@]+)@([^\s/]+)(?:/([^\s]*))?',
+            re.IGNORECASE
+        )
+        # MySQL with credentials
+        mysql_pattern = re.compile(
+            r'mysql://([^:]+):([^@]+)@([^\s/]+)(?:/([^\s]*))?',
+            re.IGNORECASE
+        )
+        # PostgreSQL with credentials
+        postgres_pattern = re.compile(
+            r'postgres(?:ql)?://([^:]+):([^@]+)@([^\s/]+)(?:/([^\s]*))?',
+            re.IGNORECASE
+        )
+        # Redis with credentials
+        redis_pattern = re.compile(
+            r'redis://([^:]+):([^@]+)@([^\s/]+)(?:/([^\s]*))?',
+            re.IGNORECASE
+        )
+        # Generic connection string with password
+        generic_pattern = re.compile(
+            r'(?:connection|conn|db)_string\s*[=:]\s*["\']([^"\']*password[^"\']*=[^"\']*[^\s"\']+[^"\']*)["\']',
+            re.IGNORECASE
+        )
+        
+        db_patterns = [
+            (mongo_pattern, "MongoDB"),
+            (mysql_pattern, "MySQL"),
+            (postgres_pattern, "PostgreSQL"),
+            (redis_pattern, "Redis")
+        ]
+        
+        for pattern, db_type in db_patterns:
+            for match in pattern.finditer(text):
+                username = match.group(1)
+                password = match.group(2)
+                host = match.group(3)
+                
+                findings.append(Finding(
+                    title=f"{db_type} Credentials Found",
+                    technique="t18",
+                    technique_name="Database Connection String Deep Scan",
+                    url=url,
+                    secret_value=f"{username}:{password}@{host}",
+                    severity="critical",
+                    data_class="Credential",
+                    impact=f"Full {db_type} database access credentials exposed. Complete database compromise possible.",
+                    remediation=f"Use environment variables or secret management service for {db_type} credentials"
+                ))
+        
+        # Check for generic connection strings
+        for match in generic_pattern.finditer(text):
+            connection_string = match.group(1)
+            if 'password' in connection_string.lower():
+                findings.append(Finding(
+                    title="Database Connection String Found",
+                    technique="t18",
+                    technique_name="Database Connection String Deep Scan",
+                    url=url,
+                    secret_value=connection_string,
+                    severity="critical",
+                    data_class="Credential",
+                    impact="Database connection string with credentials exposed",
+                    remediation="Use environment variables or secret management service for database credentials"
+                ))
+        
+        return findings
 
 
 # Import urlparse for URL parsing

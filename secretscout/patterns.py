@@ -1,14 +1,14 @@
 """
 Secret Pattern Detection Module
-Advanced pattern matching for API keys, secrets, and sensitive data
+NSA-Grade Advanced pattern matching for API keys, secrets, and sensitive data
 """
 
 import re
 import base64
 import math
 import json
-from typing import Dict, List, Tuple, Pattern, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Tuple, Pattern, Optional, Callable
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -22,6 +22,9 @@ class SecretPattern:
     provider: Optional[str] = None
     allowlist: bool = False  # If True, this is public by design
     entropy_threshold: float = 3.0  # Minimum entropy for generic patterns
+    validator: Optional[Callable[[str], bool]] = None  # Custom validation function
+    context_keywords: List[str] = field(default_factory=list)  # Keywords that must be nearby
+    max_distance: int = 200  # Max characters to look for context keywords
 
 
 # High-entropy string detection using Shannon entropy
@@ -57,6 +60,203 @@ def is_high_entropy_string(text: str, threshold: float = 3.5) -> bool:
     return False
 
 
+# ============================================================================
+# NSA-GRADE RAZORPAY VALIDATION
+# ============================================================================
+
+def validate_razorpay_secret(secret: str) -> bool:
+    """
+    NSA-Grade Razorpay secret validation.
+    Real Razorpay secrets have:
+    - Exactly 32 lowercase hex chars
+    - High entropy (>3.8)
+    - No repeating patterns (not like 'aaaa...')
+    - Not sequential (not like '1234...')
+    - Not all same character
+    """
+    if not secret:
+        return False
+    
+    # Must be exactly 32 characters
+    if len(secret) != 32:
+        return False
+    
+    # Must be all lowercase hex
+    if not all(c in '0123456789abcdef' for c in secret):
+        return False
+    
+    # Must have high entropy
+    entropy = calculate_shannon_entropy(secret)
+    if entropy < 3.8:
+        return False
+    
+    # Check for sequential patterns (common in fake/test keys)
+    sequential_patterns = [
+        '0123', '1234', '2345', '3456', '4567', '5678', '6789',
+        '789a', '89ab', '9abc', 'abcdef', 'fedcba', 'edcba', 'dcba',
+        '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777',
+        '8888', '9999', 'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff'
+    ]
+    
+    for pattern in sequential_patterns:
+        if pattern in secret.lower():
+            return False
+    
+    # Check for repeating characters (4+ same chars in a row)
+    if re.search(r'(.)\1{3,}', secret):
+        return False
+    
+    # Check for common test patterns
+    test_patterns = [
+        'test', 'demo', 'sample', 'example', 'placeholder',
+        'changeme', 'password', 'secret', 'key', '123456',
+        'abcdef', 'fedcba', 'qwerty', 'asdfgh', 'zxcvbn'
+    ]
+    
+    secret_lower = secret.lower()
+    for pattern in test_patterns:
+        if pattern in secret_lower:
+            return False
+    
+    return True
+
+
+# ============================================================================
+# CONTEXT-AWARE SCANNING (NSA SMART DETECTION RULES)
+# ============================================================================
+
+def is_in_comment(text: str, position: int) -> bool:
+    """Check if a position is inside a comment"""
+    # Simple check for // and /* */ comments
+    before = text[:position]
+    
+    # Check for // comment
+    last_newline = before.rfind('\n')
+    line_start = before[last_newline:] if last_newline != -1 else before
+    if '//' in line_start:
+        return True
+    
+    # Check for /* */ comment
+    if before.count('/*') > before.count('*/'):
+        return True
+    
+    return False
+
+
+def is_in_string_literal(text: str, position: int) -> bool:
+    """Check if a position is inside a string literal"""
+    before = text[:position]
+    
+    # Count quotes
+    single_quotes = before.count("'")
+    double_quotes = before.count('"')
+    
+    # If odd number of quotes, we're inside a string
+    if single_quotes % 2 == 1 or double_quotes % 2 == 1:
+        return True
+    
+    return False
+
+
+def extract_variable_name(text: str, position: int) -> Optional[str]:
+    """Extract the variable name at a given position"""
+    # Look backwards for variable declaration
+    before = text[:position]
+    
+    # Pattern: var x = or x = or const x =
+    var_pattern = re.compile(r'(?:var|let|const|function)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*$')
+    match = var_pattern.search(before[max(0, position-100):])
+    
+    if match:
+        return match.group(1)
+    
+    return None
+
+
+def is_real_secret(match: re.Match, text: str, pattern: SecretPattern) -> bool:
+    """
+    NSA-Grade context analysis to determine if a match is a real secret
+    """
+    secret_value = match.group(0)
+    match_start = match.start()
+    
+    # Rule 1: Check if it's in a comment
+    if is_in_comment(text, match_start):
+        return False
+    
+    # Rule 2: Check if it's in a string literal
+    if is_in_string_literal(text, match_start):
+        # But if the variable name suggests it's a secret, keep it
+        var_name = extract_variable_name(text, match_start)
+        if var_name:
+            secret_keywords = ['key', 'secret', 'token', 'password', 'api', 'auth', 'credential', 'private']
+            if any(keyword in var_name.lower() for keyword in secret_keywords):
+                return True
+        return False
+    
+    # Rule 3: Check if it's in a test file
+    if 'test' in text.lower() or 'spec' in text.lower():
+        # But only skip if it's clearly test data
+        if 'test' in secret_value.lower() or 'example' in secret_value.lower():
+            return False
+    
+    # Rule 4: Check if it's in documentation
+    if text.count('\n') > 50:
+        if '.md' in text or '.txt' in text or 'readme' in text.lower():
+            return False
+    
+    # Rule 5: Check entropy - real secrets have HIGH entropy
+    if pattern.entropy_threshold > 0:
+        if not is_high_entropy_string(secret_value, pattern.entropy_threshold):
+            return False
+    else:
+        # Default entropy check
+        if calculate_shannon_entropy(secret_value) < 3.0:
+            return False
+    
+    # Rule 6: Check for placeholder values
+    placeholder_patterns = [
+        'example', 'test', 'placeholder', 'your_', 'xxx', 'yyy', 'zzz',
+        'sample', 'demo', 'dummy', 'fake', 'changeme', 'password123',
+        '123456', 'qwerty', 'abc123', 'letmein', 'admin', 'guest'
+    ]
+    
+    secret_lower = secret_value.lower()
+    for placeholder in placeholder_patterns:
+        if placeholder in secret_lower:
+            return False
+    
+    # Rule 7: Check for sequential/repeating patterns
+    if re.search(r'(?:0123|1234|2345|3456|4567|5678|6789|7890|abcdef|fedcba)', secret_lower):
+        return False
+    if re.search(r'(.)\1{4,}', secret_value):  # 5+ repeating chars
+        return False
+    
+    # Rule 8: Custom validator if provided
+    if pattern.validator:
+        try:
+            if not pattern.validator(secret_value):
+                return False
+        except Exception:
+            return False
+    
+    # Rule 9: Context keywords check
+    if pattern.context_keywords:
+        text_lower = text.lower()
+        match_end = match.end()
+        
+        # Look for keywords within max_distance characters
+        search_start = max(0, match_start - pattern.max_distance)
+        search_end = min(len(text), match_end + pattern.max_distance)
+        nearby_text = text_lower[search_start:search_end]
+        
+        # At least one keyword must be present
+        if not any(keyword in nearby_text for keyword in pattern.context_keywords):
+            return False
+    
+    return True
+
+
 
 
 
@@ -81,21 +281,26 @@ SECRET_PATTERNS: List[SecretPattern] = [
     ),
     
 
-    # Razorpay Keys (Critical for bounty hunting)
+    # Razorpay Keys (Critical for bounty hunting - NSA Grade)
     SecretPattern(
         name="Razorpay Key ID",
         pattern=re.compile(r'rzp_(live|test)_[a-zA-Z0-9]{16,}', re.IGNORECASE),
         severity="high",
         data_class="Financial",
         provider="razorpay",
-        allowlist=True  # Key ID is public by design
+        allowlist=True,  # Key ID is public by design
+        context_keywords=["razorpay", "rzp_", "payment", "gateway"],
+        max_distance=100
     ),
     SecretPattern(
         name="Razorpay Key Secret",
         pattern=re.compile(r'\b[a-f0-9]{32}\b'),
         severity="critical",
         data_class="Financial",
-        provider="razorpay"
+        provider="razorpay",
+        validator=validate_razorpay_secret,
+        context_keywords=["razorpay", "rzp_", "payment", "gateway", "secret", "key"],
+        max_distance=100
     ),
     
     # Google API Keys
@@ -401,7 +606,7 @@ GIT_PATTERNS = [
 
 def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
     """
-    Find all secrets in the given text using pattern matching and entropy analysis
+    Find all secrets in the given text using NSA-grade pattern matching and context analysis
     
     Args:
         text: The text to scan
@@ -420,39 +625,9 @@ def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
             except IndexError:
                 secret_value = match.group(0)
             
-            # Skip if it's a placeholder or test value
-            if any(placeholder in secret_value.lower() for placeholder in 
-                   ['example', 'test', 'placeholder', 'your_', 'xxx', 'yyy', 'zzz', 'sample', 'demo']):
+            # NSA-Grade: Use context-aware filtering
+            if not is_real_secret(match, text, pattern):
                 continue
-            
-            # For generic patterns, check entropy
-            if pattern.entropy_threshold > 0 and not is_high_entropy_string(secret_value, pattern.entropy_threshold):
-                continue
-            
-            # For Razorpay secrets, be more strict - only accept if it looks like a real key
-            if pattern.provider == "razorpay" and pattern.name == "Razorpay Key Secret":
-                # Razorpay secrets are exactly 32 lowercase hex characters
-                if len(secret_value) != 32 or not all(c in '0123456789abcdef' for c in secret_value):
-                    continue
-                # Additional check: Razorpay secrets should be in context with razorpay
-                # Check if 'razorpay' appears in the text near this match
-                match_start = match.start()
-                text_lower = text.lower()
-                # Look for 'razorpay' within 50 characters before OR after (very strict)
-                search_start = max(0, match_start - 50)
-                search_end = min(len(text), match_start + 50)
-                nearby_text = text_lower[search_start:search_end]
-                if 'razorpay' not in nearby_text and 'rzp_' not in nearby_text:
-                    # Also check if razorpay/rzp_ appears right after the match
-                    after_text = text_lower[match_start + len(secret_value):min(len(text), match_start + len(secret_value) + 50)]
-                    if 'razorpay' not in after_text and 'rzp_' not in after_text:
-                        continue
-                # Don't match if this 32-char hex is part of a longer string (like a key ID)
-                # Check characters before and after
-                if match_start > 0 and text[match_start - 1] in 'abcdef0123456789-':
-                    continue  # Part of a longer hex string or has prefix
-                if match_start + 32 < len(text) and text[match_start + 32] in 'abcdef0123456789':
-                    continue  # Part of a longer hex string
             
             finding = {
                 'type': pattern.name,
@@ -471,6 +646,20 @@ def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
     for pattern in SENSITIVE_PATTERNS:
         for match in pattern.pattern.finditer(text):
             secret_value = match.group(0)
+            
+            # NSA-Grade: Apply basic context filtering to sensitive patterns too
+            if is_in_comment(text, match.start()):
+                continue
+            if is_in_string_literal(text, match.start()):
+                continue
+            
+            # Check for placeholders
+            placeholder_patterns = [
+                'example', 'test', 'placeholder', 'your_', 'xxx', 'yyy', 'zzz',
+                'sample', 'demo', 'dummy', 'fake'
+            ]
+            if any(p in secret_value.lower() for p in placeholder_patterns):
+                continue
             
             finding = {
                 'type': pattern.name,
