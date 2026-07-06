@@ -48,12 +48,14 @@ class StealthFetcher:
         timeout: int = 30,
         headless: bool = True,
         slow_mo: int = 50,
+        mobile_mode: bool = False,
     ):
         self.delay = delay
         self.max_retries = max_retries
-        self.user_agent = user_agent or self._get_random_user_agent()
+        self.user_agent = user_agent or self._get_random_user_agent(mobile=mobile_mode)
         self.proxy = proxy
         self.timeout = timeout
+        self.mobile_mode = mobile_mode
         
         # Session
         self.session = requests.Session()
@@ -68,34 +70,68 @@ class StealthFetcher:
         self._waf_detected: Optional[str] = None
         self._request_count = 0
         
-        logger.info(f"Stealth Fetcher initialized: user_agent={self.user_agent[:50]}...")
+        logger.info(f"Stealth Fetcher initialized: user_agent={self.user_agent[:50]}..., mobile_mode={mobile_mode}")
     
-    def _get_random_user_agent(self) -> str:
+    def _get_random_user_agent(self, mobile: bool = False) -> str:
         """Get a random modern browser user agent"""
-        user_agents = [
-            # Chrome on Windows
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            
-            # Chrome on Mac
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            
-            # Firefox on Windows
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
-            
-            # Safari on Mac
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/604.1',
-            
-            # Edge on Windows
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
-            
-            # Mobile - iPhone
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-            
-            # Mobile - Android
-            'Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-        ]
+        if mobile:
+            user_agents = [
+                # Mobile - iPhone (iOS 17)
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 15_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.7 Mobile/15E148 Safari/604.1',
+                
+                # Mobile - Android (Chrome)
+                'Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+                'Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'Mozilla/5.0 (Linux; Android 12; SM-A505FN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36',
+                
+                # Mobile - Android (Firefox)
+                'Mozilla/5.0 (Android 13; Mobile; rv:115.0) Gecko/115.0 Firefox/115.0',
+                'Mozilla/5.0 (Android 12; Mobile; rv:109.0) Gecko/109.0 Firefox/115.0',
+                
+                # Mobile - Samsung
+                'Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                
+                # Mobile - Xiaomi
+                'Mozilla/5.0 (Linux; Android 13; 2210132SG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            ]
+        else:
+            user_agents = [
+                # Chrome on Windows
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                
+                # Chrome on Mac
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                
+                # Firefox on Windows
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+                
+                # Safari on Mac
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/604.1',
+                
+                # Edge on Windows
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+            ]
         return random.choice(user_agents)
+    
+    def _get_mobile_headers(self) -> Dict[str, str]:
+        """Get headers optimized for mobile devices (less WAF aggressive)"""
+        return {
+            'User-Agent': self._get_random_user_agent(mobile=True),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Save-Data': 'on',  # Mobile optimization
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+        }
     
     def _configure_session(self):
         """Configure the requests session with stealth headers"""
@@ -404,8 +440,18 @@ class StealthFetcher:
                     
                     # If we detected a specific WAF, use appropriate bypass for next attempt
                     if detected_waf == 'akamai' and attempt < max_attempts - 1:
-                        self._apply_akamai_bypass(url)
-                        continue
+                        # Try mobile mode first (Akamai is less aggressive with mobile)
+                        if not self.mobile_mode and attempt == 0:
+                            self.mobile_mode = True
+                            self.user_agent = self._get_random_user_agent(mobile=True)
+                            mobile_headers = self._get_mobile_headers()
+                            for key, value in mobile_headers.items():
+                                self.session.headers[key] = value
+                            logger.info("Switching to mobile mode for Akamai bypass")
+                            continue
+                        else:
+                            self._apply_akamai_bypass(url)
+                            continue
                     elif detected_waf == 'cloudflare' and attempt < max_attempts - 1:
                         cf_headers = self._get_cloudflare_bypass_headers()
                         for key, value in cf_headers.items():
