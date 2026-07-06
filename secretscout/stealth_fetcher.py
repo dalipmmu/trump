@@ -64,6 +64,10 @@ class StealthFetcher:
         # Visited URLs
         self._visited_urls: Set[str] = set()
         
+        # WAF bypass state
+        self._waf_detected: Optional[str] = None
+        self._request_count = 0
+        
         logger.info(f"Stealth Fetcher initialized: user_agent={self.user_agent[:50]}...")
     
     def _get_random_user_agent(self) -> str:
@@ -115,6 +119,166 @@ class StealthFetcher:
                 'http': self.proxy,
                 'https': self.proxy,
             }
+        
+        # Configure session for WAF bypass
+        self._configure_waf_bypass()
+    
+    def _configure_waf_bypass(self):
+        """Configure advanced WAF bypass settings"""
+        # Remove default headers that might trigger WAF
+        self.session.headers.pop('Accept-Encoding', None)
+        
+        # Add realistic browser headers that bypass common WAFs
+        self.session.headers.update({
+            'Accept-Encoding': 'gzip, deflate',  # Remove br to avoid some WAFs
+            'X-Requested-With': 'XMLHttpRequest',
+            'DNT': '1',  # Do Not Track
+            'Sec-GPC': '1',  # Global Privacy Control
+        })
+    
+    def _get_akamai_bypass_headers(self) -> Dict[str, str]:
+        """Get headers specifically for bypassing Akamai WAF"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+        }
+    
+    def _get_akamai_cookies(self, domain: str) -> Dict[str, str]:
+        """Generate realistic cookies for Akamai bypass"""
+        import hashlib
+        import time
+        
+        timestamp = str(int(time.time() * 1000))
+        
+        # Generate realistic cookie values
+        cookies = {
+            'bm_sz': f'{random.randint(1000000, 9999999)}__{random.randint(1000000, 9999999)}',
+            'bm_sv': f'{random.randint(1000000, 9999999)}__{random.randint(1000000, 9999999)}',
+            '_abck': f'{hashlib.md5(f"{timestamp}{random.random()}".encode()).hexdigest()}_{timestamp}_-1__UTC',
+            'X-BM-GB': f'{random.randint(1000000, 9999999)}.{random.randint(1000000, 9999999)}.{random.randint(1000000, 9999999)}.{random.randint(1000000, 9999999)}',
+        }
+        
+        return cookies
+    
+    def _get_realistic_referer(self, url: str) -> str:
+        """Generate a realistic referer for the request"""
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        
+        # Common referers that look legitimate
+        referers = [
+            f'https://www.google.com/search?q=site:{domain}',
+            f'https://www.google.com/',
+            f'https://{domain}/',
+            f'https://www.bing.com/search?q={domain}',
+            f'https://duckduckgo.com/?q={domain}',
+        ]
+        
+        return random.choice(referers)
+    
+    def _apply_akamai_bypass(self, url: str):
+        """Apply advanced Akamai bypass techniques"""
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        
+        # Set Akamai-specific headers
+        akamai_headers = self._get_akamai_bypass_headers()
+        for key, value in akamai_headers.items():
+            self.session.headers[key] = value
+        
+        # Add realistic referer
+        self.session.headers['Referer'] = self._get_realistic_referer(url)
+        
+        # Add cookies
+        cookies = self._get_akamai_cookies(domain)
+        self.session.cookies.update(cookies)
+        
+        # Remove suspicious headers
+        self.session.headers.pop('X-Requested-With', None)
+        self.session.headers.pop('DNT', None)
+        self.session.headers.pop('Sec-GPC', None)
+        
+        logger.info(f"Applied Akamai bypass for {domain}")
+    
+    def _get_cloudflare_bypass_headers(self) -> Dict[str, str]:
+        """Get headers specifically for bypassing Cloudflare WAF"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+        }
+    
+    def _get_aws_waf_bypass_headers(self) -> Dict[str, str]:
+        """Get headers specifically for bypassing AWS WAF"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+        }
+    
+    def _detect_waf(self, response) -> Optional[str]:
+        """Detect which WAF is blocking the request"""
+        headers = dict(response.headers)
+        content = response.text if hasattr(response, 'text') else ''
+        
+        # Check headers
+        server = headers.get('Server', '').lower()
+        x_powered_by = headers.get('X-Powered-By', '').lower()
+        
+        if 'akamai' in server or 'akamaighost' in server.lower():
+            return 'akamai'
+        if 'cloudflare' in server or 'cloudflare' in x_powered_by:
+            return 'cloudflare'
+        if 'aws' in server or 'awselb' in server:
+            return 'aws'
+        if 'incapsula' in server:
+            return 'incapsula'
+        if 'sucuri' in server:
+            return 'sucuri'
+        
+        # Check content
+        content_lower = content.lower()
+        if 'akamai' in content_lower or 'edgesuite' in content_lower:
+            return 'akamai'
+        if 'cloudflare' in content_lower:
+            return 'cloudflare'
+        if 'aws waf' in content_lower:
+            return 'aws'
+        if 'incapsula' in content_lower:
+            return 'incapsula'
+        if 'sucuri' in content_lower:
+            return 'sucuri'
+        
+        # Check status codes
+        if response.status_code == 403:
+            return 'unknown'
+        
+        return None
     
     def _human_like_delay(self):
         """Add human-like random delay"""
@@ -187,25 +351,71 @@ class StealthFetcher:
         
         max_attempts = self.max_retries + 1
         last_error = None
+        detected_waf = None
+        
+        # Different header strategies for each attempt
+        header_strategies = [
+            'default',
+            'akamai',
+            'cloudflare',
+            'aws',
+        ]
         
         for attempt in range(max_attempts):
             try:
                 # Add human-like delay
                 self._human_like_delay()
                 
-                # Change user agent for each attempt
+                # Use different header strategy for each attempt
                 if attempt > 0:
-                    self.user_agent = self._get_random_user_agent()
-                    self.session.headers['User-Agent'] = self.user_agent
+                    strategy = header_strategies[min(attempt, len(header_strategies) - 1)]
+                    
+                    if strategy == 'akamai':
+                        headers = self._get_akamai_bypass_headers()
+                        self.user_agent = headers['User-Agent']
+                    elif strategy == 'cloudflare':
+                        headers = self._get_cloudflare_bypass_headers()
+                        self.user_agent = headers['User-Agent']
+                    elif strategy == 'aws':
+                        headers = self._get_aws_waf_bypass_headers()
+                        self.user_agent = headers['User-Agent']
+                    else:
+                        self.user_agent = self._get_random_user_agent()
+                        headers = None
+                    
+                    if headers:
+                        # Update session headers with WAF-specific headers
+                        for key, value in headers.items():
+                            self.session.headers[key] = value
                 
                 # Make request
-                logger.info(f"Fetching URL (attempt {attempt + 1}/{max_attempts}): {url}")
+                logger.info(f"Fetching URL (attempt {attempt + 1}/{max_attempts}, strategy={header_strategies[min(attempt, len(header_strategies) - 1)]}): {url}")
                 
                 response = self.session.get(
                     url,
                     timeout=self.timeout,
                     allow_redirects=True
                 )
+                
+                # Check if we're being blocked by a WAF
+                if response.status_code == 403:
+                    detected_waf = self._detect_waf(response)
+                    logger.warning(f"WAF detected: {detected_waf} - Status: {response.status_code}")
+                    
+                    # If we detected a specific WAF, use appropriate bypass for next attempt
+                    if detected_waf == 'akamai' and attempt < max_attempts - 1:
+                        self._apply_akamai_bypass(url)
+                        continue
+                    elif detected_waf == 'cloudflare' and attempt < max_attempts - 1:
+                        cf_headers = self._get_cloudflare_bypass_headers()
+                        for key, value in cf_headers.items():
+                            self.session.headers[key] = value
+                        continue
+                    elif detected_waf == 'aws' and attempt < max_attempts - 1:
+                        aws_headers = self._get_aws_waf_bypass_headers()
+                        for key, value in aws_headers.items():
+                            self.session.headers[key] = value
+                        continue
                 
                 # Decode content (handle gzip, deflate, brotli)
                 html = self._decode_content(response)

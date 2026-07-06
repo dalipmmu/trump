@@ -621,7 +621,14 @@ def find_secrets_in_text(text: str, context: str = "") -> List[Dict]:
     for pattern in SECRET_PATTERNS:
         for match in pattern.pattern.finditer(text):
             try:
-                secret_value = match.group(pattern.secret_group) if pattern.secret_group > 0 else match.group(0)
+                # Try to get the secret group, fall back to group 0 if it doesn't exist
+                if pattern.secret_group > 0:
+                    try:
+                        secret_value = match.group(pattern.secret_group)
+                    except IndexError:
+                        secret_value = match.group(0)
+                else:
+                    secret_value = match.group(0)
             except IndexError:
                 secret_value = match.group(0)
             

@@ -3,6 +3,7 @@ Browser Automation Engine for SecretScout
 NSA-GRADE scanning using real browser automation to bypass WAF protection
 """
 
+import re
 import time
 import json
 import logging
@@ -26,7 +27,10 @@ try:
 except Exception:
     BROWSER_AVAILABLE = False
     BrowserFetcher = None
-    BrowserFetchResult = StealthFetchResult
+    BrowserFetchResult = None
+
+# Define a fallback result type
+FetchResult = BrowserFetchResult if BrowserFetchResult else StealthFetchResult
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -182,10 +186,10 @@ class BrowserEngine:
             url = 'https://' + url
         return url.split('#')[0].split('?')[0].rstrip('/')
     
-    def _should_scan_url(self, url: str, base_url: str) -> bool:
+    def _should_scan_url(self, url: str, base_url: str, check_visited: bool = True) -> bool:
         """Determine if a URL should be scanned"""
-        # Skip if already visited
-        if url in self._visited:
+        # Skip if already visited (only if check_visited is True)
+        if check_visited and url in self._visited:
             return False
         
         # Skip if not same host (if configured)
@@ -204,6 +208,13 @@ class BrowserEngine:
         
         return True
     
+    def _get_pattern_attr(self, pattern, attr: str, default=None):
+        """Helper to get attribute from pattern (dict or SecretPattern)"""
+        if isinstance(pattern, dict):
+            return pattern.get(attr, default)
+        else:
+            return getattr(pattern, attr, default)
+    
     def _scan_page_content(self, html: str, url: str, page_title: str = "") -> List[Finding]:
         """Scan page content for secrets"""
         findings = []
@@ -214,86 +225,111 @@ class BrowserEngine:
         
         # Check for source map patterns
         for pattern in SOURCE_MAP_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                if pattern['validator'] and not pattern['validator'](secret):
-                    continue
-                
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.MEDIUM),
-                    confidence=pattern.get('confidence', 0.7),
-                    technique_id="t1",
-                    timestamp=time.time(),
-                    metadata={'page_title': page_title, 'source': 'browser_html'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_validator = self._get_pattern_attr(pattern, 'validator')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.MEDIUM)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.7)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    if pattern_validator and not pattern_validator(secret):
+                        continue
+                    
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t1",
+                        timestamp=time.time(),
+                        metadata={'page_title': page_title, 'source': 'browser_html'}
+                    )
+                    findings.append(finding)
         
         # Check for config file patterns
         for pattern in CONFIG_FILE_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.HIGH),
-                    confidence=pattern.get('confidence', 0.8),
-                    technique_id="t2",
-                    timestamp=time.time(),
-                    metadata={'page_title': page_title, 'source': 'browser_html'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.HIGH)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.8)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t2",
+                        timestamp=time.time(),
+                        metadata={'page_title': page_title, 'source': 'browser_html'}
+                    )
+                    findings.append(finding)
         
         # Check for debug endpoint patterns
         for pattern in DEBUG_ENDPOINT_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.CRITICAL),
-                    confidence=pattern.get('confidence', 0.9),
-                    technique_id="t3",
-                    timestamp=time.time(),
-                    metadata={'page_title': page_title, 'source': 'browser_html'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.CRITICAL)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.9)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t3",
+                        timestamp=time.time(),
+                        metadata={'page_title': page_title, 'source': 'browser_html'}
+                    )
+                    findings.append(finding)
         
         # Check for Git patterns
         for pattern in GIT_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.HIGH),
-                    confidence=pattern.get('confidence', 0.85),
-                    technique_id="t4",
-                    timestamp=time.time(),
-                    metadata={'page_title': page_title, 'source': 'browser_html'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.HIGH)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.85)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t4",
+                        timestamp=time.time(),
+                        metadata={'page_title': page_title, 'source': 'browser_html'}
+                    )
+                    findings.append(finding)
         
         return findings
     
@@ -320,95 +356,120 @@ class BrowserEngine:
         """Technique 2: Config file scanning"""
         findings = []
         for pattern in CONFIG_FILE_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.HIGH),
-                    confidence=pattern.get('confidence', 0.8),
-                    technique_id="t2",
-                    timestamp=time.time(),
-                    metadata={'source': 'browser_t2'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.HIGH)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.8)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t2",
+                        timestamp=time.time(),
+                        metadata={'source': 'browser_t2'}
+                    )
+                    findings.append(finding)
         return findings
     
     def _scan_technique_t3(self, html: str, url: str) -> List[Finding]:
         """Technique 3: Debug endpoint scanning"""
         findings = []
         for pattern in DEBUG_ENDPOINT_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.CRITICAL),
-                    confidence=pattern.get('confidence', 0.9),
-                    technique_id="t3",
-                    timestamp=time.time(),
-                    metadata={'source': 'browser_t3'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.CRITICAL)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.9)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t3",
+                        timestamp=time.time(),
+                        metadata={'source': 'browser_t3'}
+                    )
+                    findings.append(finding)
         return findings
     
     def _scan_technique_t4(self, html: str, url: str) -> List[Finding]:
         """Technique 4: Git repository scanning"""
         findings = []
         for pattern in GIT_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.HIGH),
-                    confidence=pattern.get('confidence', 0.85),
-                    technique_id="t4",
-                    timestamp=time.time(),
-                    metadata={'source': 'browser_t4'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.HIGH)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.85)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t4",
+                        timestamp=time.time(),
+                        metadata={'source': 'browser_t4'}
+                    )
+                    findings.append(finding)
         return findings
     
     def _scan_technique_t5(self, html: str, url: str) -> List[Finding]:
         """Technique 5: Source map scanning"""
         findings = []
         for pattern in SOURCE_MAP_PATTERNS:
-            matches = pattern['pattern'].findall(html)
-            for match in matches:
-                secret = match if isinstance(match, str) else match[0]
-                if pattern['validator'] and not pattern['validator'](secret):
-                    continue
-                
-                finding = Finding(
-                    secret_type=pattern['name'],
-                    secret_value=secret,
-                    redacted_secret=redact_secret(secret),
-                    source=url,
-                    line_number=0,
-                    context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
-                    severity=pattern.get('severity', Severity.MEDIUM),
-                    confidence=pattern.get('confidence', 0.7),
-                    technique_id="t5",
-                    timestamp=time.time(),
-                    metadata={'source': 'browser_t5'}
-                )
-                findings.append(finding)
+            pattern_obj = self._get_pattern_attr(pattern, 'pattern')
+            pattern_name = self._get_pattern_attr(pattern, 'name', 'Unknown')
+            pattern_validator = self._get_pattern_attr(pattern, 'validator')
+            pattern_severity = self._get_pattern_attr(pattern, 'severity', Severity.MEDIUM)
+            pattern_confidence = self._get_pattern_attr(pattern, 'confidence', 0.7)
+            
+            if pattern_obj:
+                matches = pattern_obj.findall(html)
+                for match in matches:
+                    secret = match if isinstance(match, str) else match[0]
+                    if pattern_validator and not pattern_validator(secret):
+                        continue
+                    
+                    finding = Finding(
+                        secret_type=pattern_name,
+                        secret_value=secret,
+                        redacted_secret=redact_secret(secret),
+                        source=url,
+                        line_number=0,
+                        context=html[max(0, html.find(secret) - 100):html.find(secret) + len(secret) + 100],
+                        severity=pattern_severity,
+                        confidence=pattern_confidence,
+                        technique_id="t5",
+                        timestamp=time.time(),
+                        metadata={'source': 'browser_t5'}
+                    )
+                    findings.append(finding)
         return findings
     
     def _scan_technique_t16(self, html: str, url: str) -> List[Finding]:
@@ -538,7 +599,7 @@ class BrowserEngine:
             logger.warning(f"Unknown technique: {technique_id}")
             return []
     
-    def scan_page(self, url: str) -> BrowserFetchResult:
+    def scan_page(self, url: str):
         """
         Scan a single page using browser automation
         
@@ -546,14 +607,14 @@ class BrowserEngine:
             url: URL to scan
         
         Returns:
-            BrowserFetchResult with scan results
+            FetchResult with scan results
         """
         url = self._normalize_url(url)
         
-        # Check if should scan
-        if not self._should_scan_url(url, self.config.url):
+        # Check if should scan (don't check visited here, we'll handle it below)
+        if not self._should_scan_url(url, self.config.url, check_visited=False):
             logger.info(f"Skipping URL: {url}")
-            return BrowserFetchResult(
+            return FetchResult(
                 url=url,
                 status_code=304,
                 html="",
@@ -564,11 +625,15 @@ class BrowserEngine:
         self._visited.add(url)
         
         # Fetch page using browser
-        result = self.fetcher.fetch(
-            url,
-            wait_until='networkidle',
-            take_screenshot=self.config.take_screenshots
-        )
+        try:
+            result = self.fetcher.fetch(
+                url,
+                wait_until='networkidle',
+                take_screenshot=self.config.take_screenshots
+            )
+        except TypeError:
+            # Fallback for StealthFetcher which doesn't support these params
+            result = self.fetcher.fetch(url)
         
         # Update stats
         self.stats['pages_scanned'] += 1
@@ -578,7 +643,8 @@ class BrowserEngine:
         elif result.success:
             self.stats['waf_bypasses'] += 1
         
-        if result.screenshot_path:
+        # Check for screenshot_path (only available in BrowserFetchResult)
+        if hasattr(result, 'screenshot_path') and result.screenshot_path:
             self.stats['screenshots_taken'] += 1
         
         # Check if blocked
@@ -636,8 +702,8 @@ class BrowserEngine:
         queue = deque()
         queue.append((start_url, 0))  # (url, depth)
         
-        # Track visited
-        self._visited.add(start_url)
+        # Track visited - DON'T add start_url here, let scan_page handle it
+        # self._visited.add(start_url)
         
         # Track pages at each depth
         pages_at_depth = {0: [start_url]}
