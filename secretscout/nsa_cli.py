@@ -78,10 +78,12 @@ def scan(ctx, target, scan_id, techniques, exclude, crawl, max_pages, max_depth,
     min_severity = severity if severity != 'all' else None
     
     # Create scan config
+    # Use parallel if specified, otherwise default to 10
+    parallel_workers = parallel if parallel is not None else 10
+    
     config = ScanConfig(
         url=target if not target.startswith('http') else target,
         project_path=target if target.startswith('/') or target.startswith('.') else None,
-        scan_id=scan_id,
         techniques=selected_techniques,
         crawl=crawl,
         max_pages=max_pages,
@@ -91,8 +93,8 @@ def scan(ctx, target, scan_id, techniques, exclude, crawl, max_pages, max_depth,
         reveal_secrets=reveal,
         output_format=output_format,
         output_file=output_file,
-        verbose=ctx.obj.get('VERBOSE', False),
-        parallel_workers=parallel
+        delay=0.1,
+        max_concurrent=parallel_workers
     )
     
     # Create engine
@@ -380,6 +382,186 @@ def send_webhook_alert(webhook_url: str, result: ScanResult):
         
     except Exception as e:
         click.echo(f"[NSA] Webhook alert error: {e}")
+
+
+@cli.command()
+@click.argument('target')
+@click.option('--scan-id', type=str, help='Custom scan ID')
+@click.option('--techniques', '-t', type=str, default='all', help='Techniques to run (comma-separated: t1,t2,t3 or "all")')
+@click.option('--exclude', '-e', type=str, help='Techniques to exclude (comma-separated)')
+@click.option('--crawl', '-c', is_flag=True, default=True, help='Crawl the website')
+@click.option('--max-pages', '-p', type=int, default=20, help='Maximum pages to crawl')
+@click.option('--max-depth', '-d', type=int, default=3, help='Maximum crawl depth')
+@click.option('--same-host-only', is_flag=True, default=True, help='Only scan same host')
+@click.option('--validate', '-V', is_flag=True, help='Validate discovered API keys')
+@click.option('--no-validate', is_flag=True, help='Skip key validation')
+@click.option('--reveal', '-r', is_flag=True, help='Reveal full secret values in output')
+@click.option('--output-format', '-f', type=click.Choice(['json', 'html', 'pdf', 'nsa']), default='nsa', help='Output format')
+@click.option('--output-file', '-O', type=str, help='Output file path')
+@click.option('--webhook', '-w', type=str, help='Webhook URL for alerts')
+@click.option('--severity', '-s', type=click.Choice(['critical', 'high', 'medium', 'low', 'all']), default='all', help='Minimum severity to report')
+@click.option('--headless', is_flag=True, default=True, help='Run browser in headless mode')
+@click.option('--no-headless', is_flag=True, help='Show browser window')
+@click.option('--screenshots', is_flag=True, help='Take screenshots of pages')
+@click.option('--slow-mo', type=int, default=50, help='Slow down browser operations (ms)')
+@click.option('--timeout', type=int, default=30000, help='Page load timeout (ms)')
+@click.option('--proxy', type=str, help='Proxy server (http://host:port)')
+@click.option('--user-agent', type=str, help='Custom user agent')
+@click.pass_context
+def browser_scan(ctx, target, scan_id, techniques, exclude, crawl, max_pages, max_depth,
+                same_host_only, validate, no_validate, reveal, output_format, output_file,
+                webhook, severity, headless, no_headless, screenshots, slow_mo, timeout, proxy, user_agent):
+    """Scan a target using browser automation to bypass WAF protection"""
+    
+    from .browser_engine import BrowserEngine, BrowserScanConfig, BrowserScanResult
+    from .report import generate_nsa_report
+    
+    # Generate scan ID if not provided
+    scan_id = scan_id or str(uuid.uuid4())
+    
+    # Parse techniques
+    if techniques == 'all':
+        selected_techniques = ALL_TECHNIQUE_IDS
+    else:
+        selected_techniques = [t.strip() for t in techniques.split(',') if t.strip()]
+    
+    # Apply exclusions
+    if exclude:
+        excluded = [t.strip() for t in exclude.split(',') if t.strip()]
+        selected_techniques = [t for t in selected_techniques if t not in excluded]
+    
+    # Determine headless mode
+    run_headless = headless and not no_headless
+    
+    # Create browser scan config
+    config = BrowserScanConfig(
+        url=target if not target.startswith('http') else target,
+        techniques=selected_techniques,
+        crawl=crawl,
+        max_pages=max_pages,
+        max_depth=max_depth,
+        same_host_only=same_host_only,
+        validate_keys=validate and not no_validate,
+        reveal_secrets=reveal,
+        output_format=output_format,
+        output_file=output_file,
+        headless=run_headless,
+        slow_mo=slow_mo,
+        timeout=timeout,
+        take_screenshots=screenshots,
+        proxy=proxy,
+        user_agent=user_agent,
+    )
+    
+    click.echo(f"[NSA BROWSER] Starting scan {scan_id} on {target}")
+    click.echo(f"[NSA BROWSER] Techniques: {', '.join(selected_techniques)}")
+    click.echo(f"[NSA BROWSER] Browser mode: {'headless' if run_headless else 'visible'}")
+    click.echo(f"[NSA BROWSER] Crawling: {crawl}")
+    
+    # Create and run browser engine
+    try:
+        engine = BrowserEngine(config)
+        result = engine.scan(config)
+        
+        # Output results
+        if output_format == 'nsa':
+            output_path = output_file or f"browser_nsa_report_{scan_id}.json"
+            # Convert to dict for NSA report
+            result_dict = {
+                'scan_id': result.scan_id,
+                'config': {
+                    'url': result.config.url,
+                    'techniques': result.config.techniques,
+                },
+                'store': {
+                    'findings': result.findings
+                },
+                'start_time': result.start_time,
+                'end_time': result.end_time,
+                'pages_scanned': result.pages_scanned,
+                'pages_blocked': result.pages_blocked,
+            }
+            
+            # Create a mock ScanResult for NSA report
+            from .engine import ScanResult, ScanConfig as EngineScanConfig
+            from .storage import FindingStore
+            
+            mock_config = EngineScanConfig()
+            mock_result = ScanResult(
+                scan_id=result.scan_id,
+                config=mock_config,
+                store=FindingStore()
+            )
+            mock_result.store.findings = result.findings
+            mock_result.start_time = result.start_time
+            mock_result.end_time = result.end_time
+            
+            generate_nsa_report(mock_result, output_path, reveal)
+            click.echo(f"[NSA BROWSER] NSA-grade report saved to: {output_path}")
+        elif output_format == 'json':
+            output_path = output_file or f"browser_report_{scan_id}.json"
+            data = {
+                'scan_id': result.scan_id,
+                'target': result.config.url,
+                'findings': [
+                    {
+                        'secret_type': f.secret_type,
+                        'secret_value': f.secret_value if reveal else f.redacted_secret,
+                        'source': f.source,
+                        'severity': f.severity.value if hasattr(f.severity, 'value') else str(f.severity),
+                        'confidence': f.confidence,
+                        'technique_id': f.technique_id,
+                        'metadata': f.metadata
+                    }
+                    for f in result.findings
+                ],
+                'stats': {
+                    'pages_scanned': result.pages_scanned,
+                    'pages_blocked': result.pages_blocked,
+                    'api_endpoints_found': result.api_endpoints_found,
+                    'links_extracted': result.links_extracted,
+                    'waf_bypasses': result.waf_bypasses,
+                    'duration_seconds': result.duration
+                }
+            }
+            with open(output_path, 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+            click.echo(f"[NSA BROWSER] JSON report saved to: {output_path}")
+        
+        # Send to webhook if configured
+        if webhook and result.findings:
+            send_webhook_alert(webhook, result)
+            click.echo(f"[NSA BROWSER] Alert sent to webhook: {webhook}")
+        
+        # Print summary
+        click.echo(f"\n[NSA BROWSER] Scan Summary:")
+        click.echo(f"  Target: {target}")
+        click.echo(f"  Scan ID: {scan_id}")
+        click.echo(f"  Pages Scanned: {result.pages_scanned}")
+        click.echo(f"  Pages Blocked: {result.pages_blocked}")
+        click.echo(f"  WAF Bypasses: {result.waf_bypasses}")
+        click.echo(f"  API Endpoints Found: {result.api_endpoints_found}")
+        click.echo(f"  Findings: {len(result.findings)}")
+        
+        if result.findings:
+            by_severity = {}
+            for f in result.findings:
+                sev = f.severity.value if hasattr(f.severity, 'value') else str(f.severity)
+                by_severity[sev] = by_severity.get(sev, 0) + 1
+            
+            for sev, count in sorted(by_severity.items(), key=lambda x: x[0], reverse=True):
+                click.echo(f"    {sev.upper()}: {count}")
+        
+        # Print errors if any
+        if engine.errors:
+            click.echo(f"\n[NSA BROWSER] Errors:")
+            for error in engine.errors:
+                click.echo(f"  - {error}")
+        
+    except Exception as e:
+        click.echo(f"[NSA BROWSER] Scan failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def load_config(config_path: str):

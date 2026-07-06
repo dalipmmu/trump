@@ -857,7 +857,7 @@ class NSAReportGenerator:
         
         return {
             'metadata': {
-                'scan_id': result.config.scan_id if result.config else 'unknown',
+                'scan_id': result.scan_id if hasattr(result, 'scan_id') else 'unknown',
                 'target': result.config.url if result.config and result.config.url else 
                          (result.config.project_path if result.config else 'unknown'),
                 'timestamp': datetime.now().isoformat(),
