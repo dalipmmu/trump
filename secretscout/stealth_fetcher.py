@@ -131,6 +131,37 @@ class StealthFetcher:
         parsed = urlparse(url)
         return parsed.netloc
     
+    def _decode_content(self, response) -> str:
+        """Decode response content handling gzip, deflate, and brotli"""
+        content = response.content
+        content_encoding = response.headers.get('content-encoding', '').lower()
+        
+        # Try to decode based on content encoding
+        if content_encoding == 'br' or content.startswith(b'\x0b\x77'):
+            # Brotli encoding
+            try:
+                import brotli
+                return brotli.decompress(content).decode('utf-8')
+            except:
+                pass
+        elif content_encoding == 'gzip' or content.startswith(b'\x1f\x8b'):
+            # Gzip encoding
+            try:
+                import gzip
+                return gzip.decompress(content).decode('utf-8')
+            except:
+                pass
+        elif content_encoding == 'deflate':
+            # Deflate encoding
+            try:
+                import zlib
+                return zlib.decompress(content, -15).decode('utf-8')
+            except:
+                pass
+        
+        # Fall back to response.text
+        return response.text
+    
     def fetch(self, url: str, **kwargs) -> StealthFetchResult:
         """
         Fetch a URL using stealth techniques
@@ -176,11 +207,13 @@ class StealthFetcher:
                     allow_redirects=True
                 )
                 
+                # Decode content (handle gzip, deflate, brotli)
+                html = self._decode_content(response)
+                
                 # Get page title
                 page_title = ""
                 if response.status_code == 200:
                     # Try to extract title from HTML
-                    html = response.text
                     if '<title>' in html.lower():
                         start = html.lower().find('<title>') + 7
                         end = html.lower().find('</title>', start)
@@ -195,7 +228,7 @@ class StealthFetcher:
                 return StealthFetchResult(
                     url=url,
                     status_code=response.status_code,
-                    html=response.text,
+                    html=html,
                     page_title=page_title,
                     page_url=response.url,
                     headers=dict(response.headers),
